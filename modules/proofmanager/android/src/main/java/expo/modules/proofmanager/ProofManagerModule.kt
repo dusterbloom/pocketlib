@@ -5,66 +5,106 @@ import expo.modules.kotlin.modules.ModuleDefinition
 import java.net.URL
 
 class ProofManagerModule : Module() {
-  // import rust library
-  companion object {
-    // Load the native library
-    init {
-        System.loadLibrary("native_rust_lib")
+    companion object {
+        init {
+            // Load the native Rust library
+            try {
+                System.loadLibrary("native_rust_lib")
+            } catch (e: UnsatisfiedLinkError) {
+                println("Failed to load native_rust_lib: ${e.message}")
+            }
+        }
     }
-  }
 
+    // Native function declarations
+    external fun rustAdd(a: Int, b: Int): Int
+    external fun generateAddress(seedPhrase: String, index: Int): AddressInfo
+    external fun createProof(input: ProofInput): ByteArray
+    external fun verifyProof(proofData: ByteArray, commitment: ByteArray): Boolean
 
-
-
-  // declare function
-  external fun rustAdd(a: Int, b: Int): Int
-
-
-
-  // Each module class must implement the definition function. The definition consists of components
-  // that describes the module's functionality and behavior.
-  // See https://docs.expo.dev/modules/module-api for more details about available components.
-  override fun definition() = ModuleDefinition {
-    // Sets the name of the module that JavaScript code will use to refer to the module. Takes a string as an argument.
-    // Can be inferred from module's class name, but it's recommended to set it explicitly for clarity.
-    // The module will be accessible from `requireNativeModule('ProofManager')` in JavaScript.
-    Name("ProofManager")
-
-    // Sets constant properties on the module. Can take a dictionary or a closure that returns a dictionary.
-    Constants(
-      "PI" to Math.PI
+    // Data classes for proof operations
+    data class AddressInfo(
+        val diversifier: ByteArray,
+        val transmissionKey: ByteArray,
+        val clueKey: ByteArray
     )
 
-    // Defines event names that the module can send to JavaScript.
-    Events("onChange")
+    data class ProofInput(
+        val seedPhrase: String,
+        val amount: Long,
+        val assetId: Long,
+        val addressIndex: Int
+    )
 
-    // Defines a JavaScript synchronous function that runs the native code on the JavaScript thread.
-    Function("hello") {
-      "Hello MONDO! 👋"
-    }
+    override fun definition() = ModuleDefinition {
+        Name("ProofManager")
 
-    AsyncFunction("rustAdd") { a: Int, b: Int ->
-      rustAdd(a, b)
-    }
+        Constants(
+            "PI" to Math.PI
+        )
 
-    // Defines a JavaScript function that always returns a Promise and whose native code
-    // is by default dispatched on the different thread than the JavaScript runtime runs on.
-    AsyncFunction("setValueAsync") { value: String ->
-      // Send an event to JavaScript.
-      sendEvent("onChange", mapOf(
-        "value" to value
-      ))
-    }
+        Events("onChange", "onProofGenerated", "onError")
 
-    // Enables the module to be used as a native view. Definition components that are accepted as part of
-    // the view definition: Prop, Events.
-    View(ProofManagerView::class) {
-      // Defines a setter for the `url` prop.
-      Prop("url") { view: ProofManagerView, url: URL ->
-        view.webView.loadUrl(url.toString())
-      }
-      // Defines an event that the view can send to JavaScript.
-      Events("onLoad")
+        // Basic test function
+        Function("hello") {
+            "Hello from ProofManager! 👋"
+        }
+
+        // Expose Rust functions
+        AsyncFunction("rustAdd") { a: Int, b: Int ->
+            try {
+                rustAdd(a, b)
+            } catch (e: Exception) {
+                throw Error("Failed to execute rustAdd: ${e.message}")
+            }
+        }
+
+        // Proof generation functions
+        AsyncFunction("generateAddress") { seedPhrase: String, index: Int ->
+            try {
+                val address = generateAddress(seedPhrase, index)
+                mapOf(
+                    "diversifier" to address.diversifier,
+                    "transmissionKey" to address.transmissionKey,
+                    "clueKey" to address.clueKey
+                )
+            } catch (e: Exception) {
+                throw Error("Failed to generate address: ${e.message}")
+            }
+        }
+
+        AsyncFunction("createProof") { input: Map<String, Any> ->
+            try {
+                val proofInput = ProofInput(
+                    seedPhrase = input["seedPhrase"] as String,
+                    amount = (input["amount"] as Number).toLong(),
+                    assetId = (input["assetId"] as Number).toLong(),
+                    addressIndex = (input["addressIndex"] as Number).toInt()
+                )
+                val proofData = createProof(proofInput)
+                // Send success event
+                sendEvent("onProofGenerated", mapOf("proof" to proofData))
+                mapOf("proof" to proofData)
+            } catch (e: Exception) {
+                sendEvent("onError", mapOf("error" to e.message))
+                throw Error("Failed to create proof: ${e.message}")
+            }
+        }
+
+        AsyncFunction("verifyProof") { proof: ByteArray, commitment: ByteArray ->
+            try {
+                verifyProof(proof, commitment)
+            } catch (e: Exception) {
+                throw Error("Failed to verify proof: ${e.message}")
+            }
+        }
+
+        // View functionality for WebView if needed
+        View(ProofManagerView::class) {
+            Prop("url") { view: ProofManagerView, url: URL ->
+                view.webView.loadUrl(url.toString())
+            }
+            Events("onLoad")
+        }
     }
-  }
 }

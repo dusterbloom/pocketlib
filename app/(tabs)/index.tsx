@@ -4,23 +4,39 @@ import { HelloWave } from '@/components/HelloWave';
 import ParallaxScrollView from '@/components/ParallaxScrollView';
 import { ThemedText } from '@/components/ThemedText';
 import { ThemedView } from '@/components/ThemedView';
-import { hello, rustAdd } from '../../modules/proofmanager'
+import { 
+  hello, 
+  rustAdd, 
+  generateAddress, 
+  createProof, 
+  verifyProof 
+} from '@modules/proofmanager';
+
 import { useEffect, useState } from 'react';
 import { Text, View } from "react-native";
 
+
+const proof =  createProof({
+  seed_phrase: "garage advice weekend this dose mango sign horse tool torch mosquito repeat sentence valid scheme pull punch need prosper build actor say cancel allow",
+  amount: 1000,
+  assetId: 1,
+  addressIndex: 0
+});
+
+console.log("Proof", proof);
 
 export default function HomeScreen() {
 
   const [value, setValue] = useState<null | number>(null);
   
-  useEffect(() => {
-    async function doFetch() {
-      const result = await rustAdd(40, 12);
-      setValue(result);
-      console.log("Results from rust async", result)
-    }
-    doFetch();
-  }, []);
+  // useEffect(() => {
+  //   async function doFetch() {
+  //     const result = await rustAdd(40, 12);
+  //     setValue(result);
+  //     console.log("Results from rust async", result)
+  //   }
+  //   doFetch();
+  // }, []);
 
 
   return (
@@ -33,13 +49,13 @@ export default function HomeScreen() {
         />
       }>
       <ThemedView style={styles.titleContainer}>
-        <ThemedText type="title">{hello()}!</ThemedText>
+        {/* <ThemedText type="title">{hello()}!</ThemedText> */}
         <HelloWave />
       </ThemedView>
       <ThemedView style={styles.stepContainer}>
         <ThemedText type="subtitle">Step 1: Try it</ThemedText>
         <Text >
-        { `The value is: ${value}`}
+        {/* { `The value is: ${value}`} */}
       </Text>
 
         <ThemedText>
