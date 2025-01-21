@@ -1,19 +1,25 @@
-import type { StyleProp, ViewStyle } from 'react-native';
+// src/types.ts
+export interface AddressInfo {
+  diversifier: number[];
+  transmission_key: number[];
+  clue_key: number[];
+}
 
-export type OnLoadEventPayload = {
-  url: string;
-};
+export interface ProofInput {
+  seed_phrase: string;
+  amount: number;
+  asset_id: number;
+  address_index: number;
+}
 
-export type ProofManagerModuleEvents = {
-  onChange: (params: ChangeEventPayload) => void;
-};
+export interface SerializedProof {
+  data: number[];
+}
 
-export type ChangeEventPayload = {
-  value: string;
-};
-
-export type ProofManagerViewProps = {
-  url: string;
-  onLoad: (event: { nativeEvent: OnLoadEventPayload }) => void;
-  style?: StyleProp<ViewStyle>;
-};
+export interface ProofManagerInterface {
+  generateAddress(seed_phrase: string, index: number): Promise<AddressInfo>;
+  createProof(input: ProofInput): Promise<SerializedProof>;
+  verifyProof(proof: SerializedProof, commitment: number[]): Promise<boolean>;
+  debugProof(proof: SerializedProof): Promise<string>;
+  debugCommitment(commitment: number[]): Promise<string>;
+}

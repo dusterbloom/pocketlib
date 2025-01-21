@@ -73,3 +73,21 @@ Add `.prettierrc` inside just `{}`
 Run `npm run android` again
 
 
+# Current app
+
+In the current app we already have
+
+1. `native_rust_lib`
+2. `modules/proofmanager`
+3. `app/(tabs)/index.tsx`
+
+## Native Rust Library folder 
+
+Inside `native_rust_lib` we have a `makefile` which can be used to `make android` as the android one is the most uptodate
+This command will generate the target library for android and the kotlin bindings both of which will be automatically copied inside the 
+`modules/proofmanager/android/src/main/uniffi/proofmanager/proofmanager.kt` and `modules/proofmanager/android/src/main/jniLibs/arm64-v8a/libproofmanager.so`
+
+It is wise to delete the `bindings` folder from `native_rust_lib` after any change to the lib.rs
+
+## Modules folder
+
