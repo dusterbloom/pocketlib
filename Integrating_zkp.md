@@ -27,7 +27,7 @@ The local module will be created in the modules directory in the root of your pr
 
 ? What is the name of the local module? › proofmanager
 ✔ What is the name of the local module? … proofmanager
-✔ What is the native module name? … ProofManager
+✔ What is the native module name? … Proofmanager
 ✔ What is the Android package name? … expo.modules.proofmanager
 
 ✔ Downloaded module template from npm
@@ -35,6 +35,10 @@ The local module will be created in the modules directory in the root of your pr
 
 ✅ Successfully created Expo module in modules/proofmanager
 ```
+
+
+
+
 
 
 # Testing connection between module and app
@@ -67,3 +71,5 @@ If you want to test you can by changing `modules/proofmanager/android/src/main/j
 
 Add `.prettierrc` inside just `{}`
 Run `npm run android` again
+
+
