@@ -33,7 +33,7 @@ IOS_DEVICE_LIB := target/aarch64-apple-ios/release/$(LIB_NAME).a
 ANDROID_TARGET := aarch64-linux-android
 ANDROID_API := 21
 ANDROID_ABI_DIR := $(ANDROID_OUTPUT_DIR)/jniLibs/arm64-v8a
-ANDROID_KOTLIN_DIR := $(ANDROID_OUTPUT_DIR)/java/com/usecapsule/example/expo/uniffi/proofmanager
+ANDROID_KOTLIN_DIR := $(ANDROID_OUTPUT_DIR)/uniffi/proofmanager
 
 # Terminal Colors
 BOLD := $(shell tput bold)
