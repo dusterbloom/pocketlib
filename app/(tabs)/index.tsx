@@ -4,8 +4,25 @@ import { HelloWave } from '@/components/HelloWave';
 import ParallaxScrollView from '@/components/ParallaxScrollView';
 import { ThemedText } from '@/components/ThemedText';
 import { ThemedView } from '@/components/ThemedView';
+import { hello, rustAdd } from '../../modules/proofmanager'
+import { useEffect, useState } from 'react';
+import { Text, View } from "react-native";
+
 
 export default function HomeScreen() {
+
+  const [value, setValue] = useState<null | number>(null);
+  
+  useEffect(() => {
+    async function doFetch() {
+      const result = await rustAdd(40, 12);
+      setValue(result);
+      console.log("Results from rust async", result)
+    }
+    doFetch();
+  }, []);
+
+
   return (
     <ParallaxScrollView
       headerBackgroundColor={{ light: '#A1CEDC', dark: '#1D3D47' }}
@@ -16,11 +33,15 @@ export default function HomeScreen() {
         />
       }>
       <ThemedView style={styles.titleContainer}>
-        <ThemedText type="title">Welcome!</ThemedText>
+        <ThemedText type="title">{hello()}!</ThemedText>
         <HelloWave />
       </ThemedView>
       <ThemedView style={styles.stepContainer}>
         <ThemedText type="subtitle">Step 1: Try it</ThemedText>
+        <Text >
+        { `The value is: ${value}`}
+      </Text>
+
         <ThemedText>
           Edit <ThemedText type="defaultSemiBold">app/(tabs)/index.tsx</ThemedText> to see changes.
           Press{' '}
