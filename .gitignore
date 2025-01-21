@@ -37,8 +37,8 @@ yarn-error.*
 
 app-example
 
-# Adnroid / ios
-android/
-ios/
+# Android / ios
+./android/
+./ios/
 
 target/
