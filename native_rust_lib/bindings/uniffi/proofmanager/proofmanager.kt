@@ -726,6 +726,8 @@ internal interface UniffiForeignFutureCompleteVoid : com.sun.jna.Callback {
 
 
 
+
+
 // A JNA Library to expose the extern-C FFI definitions.
 // This is an implementation detail which will be called internally by the public API.
 
@@ -758,6 +760,8 @@ internal interface UniffiLib : Library {
     fun uniffi_proofmanager_fn_method_proofmanager_debug_proof(`ptr`: Pointer,`proof`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
     ): RustBuffer.ByValue
     fun uniffi_proofmanager_fn_method_proofmanager_generate_address(`ptr`: Pointer,`seedPhrase`: RustBuffer.ByValue,`index`: Int,uniffi_out_err: UniffiRustCallStatus, 
+    ): RustBuffer.ByValue
+    fun uniffi_proofmanager_fn_method_proofmanager_generate_commitment(`ptr`: Pointer,`input`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
     ): RustBuffer.ByValue
     fun uniffi_proofmanager_fn_method_proofmanager_verify_proof(`ptr`: Pointer,`proof`: RustBuffer.ByValue,`commitment`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
     ): Byte
@@ -881,6 +885,8 @@ internal interface UniffiLib : Library {
     ): Short
     fun uniffi_proofmanager_checksum_method_proofmanager_generate_address(
     ): Short
+    fun uniffi_proofmanager_checksum_method_proofmanager_generate_commitment(
+    ): Short
     fun uniffi_proofmanager_checksum_method_proofmanager_verify_proof(
     ): Short
     fun uniffi_proofmanager_checksum_constructor_proofmanager_new(
@@ -912,6 +918,9 @@ private fun uniffiCheckApiChecksums(lib: UniffiLib) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
     if (lib.uniffi_proofmanager_checksum_method_proofmanager_generate_address() != 22832.toShort()) {
+        throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
+    }
+    if (lib.uniffi_proofmanager_checksum_method_proofmanager_generate_commitment() != 2346.toShort()) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
     if (lib.uniffi_proofmanager_checksum_method_proofmanager_verify_proof() != 7256.toShort()) {
@@ -1284,6 +1293,8 @@ public interface ProofManagerInterface {
     
     fun `generateAddress`(`seedPhrase`: kotlin.String, `index`: kotlin.UInt): AddressInfo
     
+    fun `generateCommitment`(`input`: ProofInput): kotlin.ByteArray
+    
     fun `verifyProof`(`proof`: SerializedProof, `commitment`: kotlin.ByteArray): kotlin.Boolean
     
     companion object
@@ -1423,6 +1434,18 @@ open class ProofManager: Disposable, AutoCloseable, ProofManagerInterface {
     uniffiRustCallWithError(ProofException) { _status ->
     UniffiLib.INSTANCE.uniffi_proofmanager_fn_method_proofmanager_generate_address(
         it, FfiConverterString.lower(`seedPhrase`),FfiConverterUInt.lower(`index`),_status)
+}
+    }
+    )
+    }
+    
+
+    override fun `generateCommitment`(`input`: ProofInput): kotlin.ByteArray {
+            return FfiConverterByteArray.lift(
+    callWithPointer {
+    uniffiRustCall() { _status ->
+    UniffiLib.INSTANCE.uniffi_proofmanager_fn_method_proofmanager_generate_commitment(
+        it, FfiConverterTypeProofInput.lower(`input`),_status)
 }
     }
     )

@@ -1,5 +1,179 @@
 // lib.rs
+
+use jni::JNIEnv;
+use jni::objects::{JClass, JString, JObject, JValue, JByteArray};
+use jni::sys::{jlong, jint, jboolean, jobject};
+
 uniffi::setup_scaffolding!();
+
+#[no_mangle]
+pub extern "system" fn Java_expo_modules_proofmanager_ProofManagerModule_createProofNative<'local>(
+    mut env: JNIEnv<'local>,
+    _class: JClass<'local>,
+    seed_phrase: JString<'local>,
+    amount: jlong,
+    asset_id: jlong,
+    address_index: jint,
+) -> jobject {
+    let seed_phrase: String = env
+        .get_string(&seed_phrase)
+        .expect("Couldn't get java string!")
+        .into();
+
+    println!("Rust: Creating proof with seed_phrase length={}, amount={}, asset_id={}, address_index={}", 
+             seed_phrase.len(), amount, asset_id, address_index);
+
+    let input = ProofInput {
+        seed_phrase,
+        amount: amount as u64,
+        asset_id: asset_id as u64,
+        address_index: address_index as u32,
+    };
+
+    match ProofManager::new().and_then(|mgr| {
+        mgr.create_proof(input.clone()).map(|proof| {
+            let commitment = mgr.generate_commitment(&input);
+            (proof, commitment)
+        })
+    }) {
+        Ok((proof, commitment)) => {
+            // Get the class and create the hashmap first
+            let hash_map_class = env.find_class("java/util/HashMap")
+                .expect("Failed to find HashMap class");
+            let hash_map = env.new_object(hash_map_class, "()V", &[])
+                .expect("Failed to create HashMap");
+
+            // Create keys first
+            let proof_key = env.new_string("proof")
+                .expect("Failed to create proof key");
+            let commitment_key = env.new_string("commitment")
+                .expect("Failed to create commitment key");
+
+            // Create byte arrays
+            let proof_array = env.byte_array_from_slice(&proof.data)
+                .expect("Failed to create proof value");
+            let commitment_array = env.byte_array_from_slice(&commitment)
+                .expect("Failed to create commitment value");
+
+            // Add proof
+            env.call_method(
+                &hash_map,
+                "put",
+                "(Ljava/lang/Object;Ljava/lang/Object;)Ljava/lang/Object;",
+                &[JValue::Object(proof_key.as_ref()), JValue::Object(&proof_array)]
+            ).expect("Failed to put proof");
+
+            // Add commitment
+            env.call_method(
+                &hash_map,
+                "put",
+                "(Ljava/lang/Object;Ljava/lang/Object;)Ljava/lang/Object;",
+                &[JValue::Object(commitment_key.as_ref()), JValue::Object(&commitment_array)]
+            ).expect("Failed to put commitment");
+
+            hash_map.into_raw()
+        },
+        Err(e) => {
+            let hash_map_class = env.find_class("java/util/HashMap")
+                .expect("Failed to find HashMap class");
+            env.throw_new("java/lang/Exception", e.to_string())
+                .expect("Failed to throw exception");
+            env.new_object(hash_map_class, "()V", &[])
+                .expect("Failed to create empty HashMap")
+                .into_raw()
+        }
+    }
+}
+
+#[no_mangle]
+pub extern "system" fn Java_expo_modules_proofmanager_ProofManagerModule_verifyProofNative<'local>(
+    mut env: JNIEnv<'local>,
+    _class: JClass<'local>,
+    proof: JByteArray<'local>,
+    commitment: JByteArray<'local>,
+) -> jboolean {
+    let convert_array = |array: JByteArray<'local>| -> Vec<u8> {
+        env.convert_byte_array(&array)
+            .map(|bytes| bytes.iter().map(|&b| b as u8).collect())
+            .unwrap_or_default()
+    };
+
+    let proof_data = convert_array(proof);
+    let commitment_data = convert_array(commitment);
+
+    match ProofManager::new().and_then(|mgr| mgr.verify_proof(
+        SerializedProof { data: proof_data },
+        commitment_data,
+    )) {
+        Ok(result) => if result { 1 } else { 0 },
+        Err(e) => {
+            env.throw_new("java/lang/Exception", e.to_string())
+                .expect("Failed to throw exception");
+            0
+        }
+    }
+}
+
+#[no_mangle]
+pub extern "system" fn Java_expo_modules_proofmanager_ProofManagerModule_generateAddressNative<'local>(
+    mut env: JNIEnv<'local>,
+    _class: JClass<'local>,
+    seed_phrase: JString<'local>,
+    index: jint,
+) -> JObject<'local> {
+    let seed_phrase: String = env
+        .get_string(&seed_phrase)
+        .expect("Couldn't get java string!")
+        .into();
+
+    match ProofManager::new().and_then(|mgr| mgr.generate_address(seed_phrase, index as u32)) {
+        Ok(address_info) => {
+            // Create a new HashMap
+            let hash_map_class = env.find_class("java/util/HashMap").expect("Failed to find HashMap class");
+            let hash_map = env.new_object(
+                hash_map_class,
+                "()V",
+                &[]
+            ).expect("Failed to create HashMap");
+
+            // Helper function to add byte array to map
+            let mut put_bytes = |key: &str, bytes: &[u8]| {
+                let j_key = env.new_string(key)
+                    .expect("Failed to create string");
+                let j_value = env.byte_array_from_slice(bytes)
+                    .expect("Failed to create byte array");
+
+                env.call_method(
+                    &hash_map,
+                    "put",
+                    "(Ljava/lang/Object;Ljava/lang/Object;)Ljava/lang/Object;",
+                    &[
+                        JValue::Object(&j_key.into()),
+                        JValue::Object(&j_value.into())
+                    ]
+                ).expect("Failed to call put");
+            };
+
+            // Add all fields
+            put_bytes("diversifier", &address_info.diversifier);
+            put_bytes("transmissionKey", &address_info.transmission_key);
+            put_bytes("clueKey", &address_info.clue_key);
+
+            hash_map // Return the JObject directly
+        },
+        Err(e) => {
+            env.throw_new("java/lang/Exception", e.to_string())
+                .expect("Failed to throw exception");
+            // Create a new empty HashMap for error case
+            let hash_map_class = env.find_class("java/util/HashMap").expect("Failed to find HashMap class");
+            env.new_object(
+                hash_map_class,
+                "()V",
+                &[]
+            ).expect("Failed to create empty HashMap") // Return empty HashMap directly
+        }
+    }
+}
 
 use std::str::FromStr;
 use rand::rngs::OsRng;
@@ -49,6 +223,8 @@ static NOTECOMMIT_DOMAIN_SEP: Lazy<Fq> = Lazy::new(|| {
 
 const GROTH16_PROOF_LENGTH_BYTES: usize = 192;
 
+
+
 // Your existing error type for FFI
 #[derive(Debug, thiserror::Error, uniffi::Error)]
 pub enum ProofError {
@@ -77,7 +253,7 @@ pub struct AddressInfo {
     pub clue_key: Vec<u8>,
 }
 
-#[derive(uniffi::Record)]
+#[derive(uniffi::Record, Clone)]
 pub struct ProofInput {
     pub seed_phrase: String,
     pub amount: u64,
@@ -224,6 +400,22 @@ impl ProofManager {
             proving_key: params.0,
             verifying_key: params.1,
         }))
+    }
+
+    fn generate_commitment(&self, input: &ProofInput) -> Vec<u8> {
+        // Generate the address
+        let address_info = self.generate_address(input.seed_phrase.clone(), input.address_index)
+            .expect("Failed to generate address");
+            
+        // Create the note
+        let note = self.create_note(
+            address_info,
+            input.amount,
+            input.asset_id
+        ).expect("Failed to create note");
+
+        // Get the commitment
+        note.commit().0.to_bytes().to_vec()
     }
 
     fn generate_address(&self, seed_phrase: String, index: u32) -> Result<AddressInfo, ProofError> {

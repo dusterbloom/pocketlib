@@ -2,109 +2,106 @@ package expo.modules.proofmanager
 
 import expo.modules.kotlin.modules.Module
 import expo.modules.kotlin.modules.ModuleDefinition
-import java.net.URL
 
 class ProofManagerModule : Module() {
     companion object {
         init {
-            // Load the native Rust library
             try {
-                System.loadLibrary("native_rust_lib")
+                // Try both possible library names
+                try {
+                    System.loadLibrary("proofmanager")
+                } catch (e: UnsatisfiedLinkError) {
+                    System.loadLibrary("native_rust_lib")
+                }
+                println("Successfully loaded native library")
             } catch (e: UnsatisfiedLinkError) {
-                println("Failed to load native_rust_lib: ${e.message}")
+                println("Failed to load native library: ${e.message}")
+                e.printStackTrace()
             }
         }
     }
 
-    // Native function declarations
-    external fun rustAdd(a: Int, b: Int): Int
-    external fun generateAddress(seedPhrase: String, index: Int): AddressInfo
-    external fun createProof(input: ProofInput): ByteArray
-    external fun verifyProof(proofData: ByteArray, commitment: ByteArray): Boolean
+    // Native function declarations - need to be at class level
+    private external fun createProofNative(
+        seedPhrase: String,
+        amount: Long,
+        assetId: Long,
+        addressIndex: Int
+    ): Map<String, ByteArray>
 
-    // Data classes for proof operations
-    data class AddressInfo(
-        val diversifier: ByteArray,
-        val transmissionKey: ByteArray,
-        val clueKey: ByteArray
-    )
 
-    data class ProofInput(
-        val seedPhrase: String,
-        val amount: Long,
-        val assetId: Long,
-        val addressIndex: Int
-    )
+    private external fun verifyProofNative(proof: ByteArray, commitment: ByteArray): Boolean
+
+    private external fun generateAddressNative(seedPhrase: String, index: Int): Map<String, ByteArray>
 
     override fun definition() = ModuleDefinition {
         Name("ProofManager")
 
-        Constants(
-            "PI" to Math.PI
-        )
-
-        Events("onChange", "onProofGenerated", "onError")
-
-        // Basic test function
-        Function("hello") {
-            "Hello from ProofManager! 👋"
-        }
-
-        // Expose Rust functions
-        AsyncFunction("rustAdd") { a: Int, b: Int ->
-            try {
-                rustAdd(a, b)
-            } catch (e: Exception) {
-                throw Error("Failed to execute rustAdd: ${e.message}")
-            }
-        }
-
-        // Proof generation functions
-        AsyncFunction("generateAddress") { seedPhrase: String, index: Int ->
-            try {
-                val address = generateAddress(seedPhrase, index)
-                mapOf(
-                    "diversifier" to address.diversifier,
-                    "transmissionKey" to address.transmissionKey,
-                    "clueKey" to address.clueKey
-                )
-            } catch (e: Exception) {
-                throw Error("Failed to generate address: ${e.message}")
-            }
-        }
-
         AsyncFunction("createProof") { input: Map<String, Any> ->
-            try {
-                val proofInput = ProofInput(
-                    seedPhrase = input["seedPhrase"] as String,
-                    amount = (input["amount"] as Number).toLong(),
-                    assetId = (input["assetId"] as Number).toLong(),
-                    addressIndex = (input["addressIndex"] as Number).toInt()
-                )
-                val proofData = createProof(proofInput)
-                // Send success event
-                sendEvent("onProofGenerated", mapOf("proof" to proofData))
-                mapOf("proof" to proofData)
+        try {
+            val result = createProofNative(
+                seedPhrase = input["seedPhrase"] as String,
+                amount = (input["amount"] as Number).toLong(),
+                assetId = (input["assetId"] as Number).toLong(),
+                addressIndex = (input["addressIndex"] as Number).toInt()
+            )
+        
+            mapOf(
+                "proof" to result["proof"]?.map { it.toInt() and 0xFF },
+                "commitment" to result["commitment"]?.map { it.toInt() and 0xFF }
+            )
             } catch (e: Exception) {
-                sendEvent("onError", mapOf("error" to e.message))
                 throw Error("Failed to create proof: ${e.message}")
             }
         }
 
-        AsyncFunction("verifyProof") { proof: ByteArray, commitment: ByteArray ->
+        AsyncFunction("verifyProof") { proof: List<Int>, commitment: List<Int> ->
             try {
-                verifyProof(proof, commitment)
+                println("Kotlin: Verifying proof of length=${proof.size}")
+                
+                // Add null checks and validation
+                if (proof.isEmpty()) {
+                    throw Error("Proof data cannot be empty")
+                }
+                if (commitment.isEmpty()) {
+                    throw Error("Commitment data cannot be empty")
+                }
+                
+                // Safely convert the lists to byte arrays with null checking
+                val proofBytes = proof.mapNotNull { value -> 
+                    value?.toByte()
+                }.toByteArray()
+                
+                val commitmentBytes = commitment.mapNotNull { value ->
+                    value?.toByte()
+                }.toByteArray()
+                
+                println("Kotlin: Converting proof (${proofBytes.size} bytes) and commitment (${commitmentBytes.size} bytes)")
+                
+                val result = verifyProofNative(proofBytes, commitmentBytes)
+                println("Kotlin: Verification result: $result")
+                result
             } catch (e: Exception) {
+                println("Kotlin: Error in verifyProof: ${e.message}")
+                e.printStackTrace()
                 throw Error("Failed to verify proof: ${e.message}")
             }
         }
 
-        // View functionality for WebView if needed
-        View(ProofManagerView::class) {
-            Prop("url") { view: ProofManagerView, url: URL ->
-                view.webView.loadUrl(url.toString())
+        AsyncFunction("generateAddress") { seedPhrase: String, index: Int ->
+            try {
+                println("Kotlin: Generating address for index=$index")
+                val addressInfo = generateAddressNative(seedPhrase, index)
+                mapOf(
+                    "diversifier" to addressInfo["diversifier"]?.map { it.toInt() and 0xFF },
+                    "transmissionKey" to addressInfo["transmissionKey"]?.map { it.toInt() and 0xFF },
+                    "clueKey" to addressInfo["clueKey"]?.map { it.toInt() and 0xFF }
+                ).also { println("Kotlin: Generated address info: $it") }
+            } catch (e: Exception) {
+                println("Kotlin: Error in generateAddress: ${e.message}")
+                e.printStackTrace()
+                throw Error("Failed to generate address: ${e.message}")
             }
-            Events("onLoad")
         }
     }
 }

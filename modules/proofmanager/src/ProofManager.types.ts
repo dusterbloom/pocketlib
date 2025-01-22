@@ -1,25 +1,20 @@
-// src/types.ts
 export interface AddressInfo {
   diversifier: number[];
-  transmission_key: number[];
-  clue_key: number[];
+  transmissionKey: number[];
+  clueKey: number[];
 }
 
 export interface ProofInput {
-  seed_phrase: string;
+  seedPhrase: string;
   amount: number;
-  asset_id: number;
-  address_index: number;
+  assetId: number;
+  addressIndex: number;
 }
 
-export interface SerializedProof {
-  data: number[];
-}
+export type SerializedProof = number[]; // ByteArray comes as number[] from native
 
 export interface ProofManagerInterface {
-  generateAddress(seed_phrase: string, index: number): Promise<AddressInfo>;
   createProof(input: ProofInput): Promise<SerializedProof>;
   verifyProof(proof: SerializedProof, commitment: number[]): Promise<boolean>;
-  debugProof(proof: SerializedProof): Promise<string>;
-  debugCommitment(commitment: number[]): Promise<string>;
+  generateAddress(seedPhrase: string, index: number): Promise<AddressInfo>;
 }

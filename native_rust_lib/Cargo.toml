@@ -9,13 +9,13 @@ path = "src/bin/uniffi-bindgen.rs"
 
 
 [lib]
-crate-type = ["lib", "cdylib", "staticlib"]
+crate-type = ["cdylib", "staticlib"]
 name = "proofmanager"
 
 
 [dependencies]
 thiserror = "1.0"
-
+jni = { version = "0.21.1", optional = false, default-features = false }
 uniffi                           = { version = "0.28.3", features = ["build", "bindgen", "cli"] }
 anyhow                           = { version = "1.0.94", default-features = false }
 ark-ff                           = { version = "0.4.0", default-features = false }
@@ -82,7 +82,7 @@ objc-foundation = "0.1"
 tracing-oslog = "0.2.0"
 
 [target.'cfg(target_os = "android")'.dependencies]
-jni = "0.21.1"
+jni = { version = "0.21.1", default-features = false, features = ["invocation"] }
 android_logger = "0.13"
 ndk = "0.7"
 ndk-context = "0.1"
