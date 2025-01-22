@@ -23,7 +23,6 @@ export default function HomeScreen() {
   useEffect(() => {
     async function generateProof() {
         try {
-            // Example proof input
             const input: ProofInput = {
                 seedPhrase: "garage advice weekend this dose mango sign horse tool torch mosquito repeat sentence valid scheme pull punch need prosper build actor say cancel allow",
                 amount: 1000,
@@ -33,22 +32,29 @@ export default function HomeScreen() {
 
             console.log("Generating proof with input:", input);
             
-            // Generate address (optional, for debugging)
+            // First generate an address - we'll need this
             const address = await ProofManager.generateAddress(input.seedPhrase, input.addressIndex);
             console.log("Generated address:", address);
 
-            // Generate proof and get the commitment
+            // Generate proof
+            const proof = await ProofManager.createProof(input);
+            console.log("Generated proof:", proof);
+            setProofResult(proof);
+
+            // The commitment should be derived from the note created with our proof
+            // For testing, you can print out the actual commitment from your Rust code
+            // by adding debug prints in the createProof function
+            
+            // Generate proof and get commitment
             const result = await ProofManager.createProof(input);
-            console.log("Generated proof result:", result);
+            console.log("Generated proof result:", {
+              proofLength: result.proof.length,
+              commitmentLength: result.commitment.length,
+              proof: result.proof,
+              commitment: result.commitment
+            });
 
-            if (!result.proof || !result.commitment) {
-                throw new Error("Missing proof or commitment in result");
-            }
-
-            // Store proof result
-            setProofResult(result);
-
-            // Verify proof using the commitment that was just generated
+            // Now verify using the actual commitment
             const isValid = await ProofManager.verifyProof(result.proof, result.commitment);
             console.log("Proof verification result:", isValid);
 

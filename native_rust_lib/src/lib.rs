@@ -3,36 +3,40 @@
 use jni::JNIEnv;
 use jni::objects::{JClass, JString, JObject, JValue, JByteArray};
 use jni::sys::{jlong, jint, jboolean, jobject};
+use std::sync::{Arc, Mutex};
+
+// Update the type to handle Arc<ProofManager>
+static PROOF_MANAGER: Lazy<Mutex<Arc<ProofManager>>> = Lazy::new(|| {
+    Mutex::new(ProofManager::new().expect("Failed to initialize ProofManager"))
+});
+
 
 uniffi::setup_scaffolding!();
 
- // Update the JNI function to use the new type
- #[no_mangle]
- pub extern "system" fn Java_expo_modules_proofmanager_ProofManagerModule_createProofNative<'local>(
-     mut env: JNIEnv<'local>,
-     _class: JClass<'local>,
-     seed_phrase: JString<'local>,
-     amount: jlong,
-     asset_id: jlong,
-     address_index: jint,
- ) -> jobject {
-     let seed_phrase: String = env
-         .get_string(&seed_phrase)
-         .expect("Couldn't get java string!")
-         .into();
+#[no_mangle]
+pub extern "system" fn Java_expo_modules_proofmanager_ProofManagerModule_createProofNative<'local>(
+    mut env: JNIEnv<'local>,
+    _class: JClass<'local>,
+    seed_phrase: JString<'local>,
+    amount: jlong,
+    asset_id: jlong,
+    address_index: jint,
+) -> jobject {
+    let seed_phrase: String = env
+        .get_string(&seed_phrase)
+        .expect("Couldn't get java string!")
+        .into();
 
-     let input = ProofInput {
-         seed_phrase,
-         amount: amount as u64,
-         asset_id: asset_id as u64,
-         address_index: address_index as u32,
-     };
+    let input = ProofInput {
+        seed_phrase,
+        amount: amount as u64,
+        asset_id: asset_id as u64,
+        address_index: address_index as u32,
+    };
 
-     // Create ProofManager once and reuse
-     let mgr = ProofManager::new().expect("Failed to create ProofManager");
-     
-     match mgr.create_proof_with_commitment(input) {
-         Ok(proof_with_commitment) => {
+    // Use global ProofManager with Arc
+    match PROOF_MANAGER.lock().unwrap().create_proof_with_commitment(input) {
+        Ok(proof_with_commitment) => {
              let hash_map_class = env.find_class("java/util/HashMap")
                  .expect("Failed to find HashMap class");
              let hash_map = env.new_object(hash_map_class, "()V", &[])
@@ -80,49 +84,49 @@ uniffi::setup_scaffolding!();
  
  }
 
-#[no_mangle]
-pub extern "system" fn Java_expo_modules_proofmanager_ProofManagerModule_verifyProofNative<'local>(
-    mut env: JNIEnv<'local>,
-    _class: JClass<'local>,
-    proof: JByteArray<'local>,
-    commitment: JByteArray<'local>,
-) -> jboolean {
-    let convert_array = |array: JByteArray<'local>| -> Vec<u8> {
-        env.convert_byte_array(&array)
-            .map(|bytes| bytes.iter().map(|&b| b as u8).collect())
-            .unwrap_or_default()
-    };
-
-    let proof_data = convert_array(proof);
-    let commitment_data = convert_array(commitment);
-
-    match ProofManager::new().and_then(|mgr| mgr.verify_proof(
-        SerializedProof { data: proof_data },
-        commitment_data,
-    )) {
-        Ok(result) => if result { 1 } else { 0 },
-        Err(e) => {
-            env.throw_new("java/lang/Exception", e.to_string())
-                .expect("Failed to throw exception");
-            0
-        }
-    }
-}
-
-#[no_mangle]
-pub extern "system" fn Java_expo_modules_proofmanager_ProofManagerModule_generateAddressNative<'local>(
-    mut env: JNIEnv<'local>,
-    _class: JClass<'local>,
-    seed_phrase: JString<'local>,
-    index: jint,
-) -> JObject<'local> {
-    let seed_phrase: String = env
-        .get_string(&seed_phrase)
-        .expect("Couldn't get java string!")
-        .into();
-
-    match ProofManager::new().and_then(|mgr| mgr.generate_address(seed_phrase, index as u32)) {
-        Ok(address_info) => {
+ #[no_mangle]
+ pub extern "system" fn Java_expo_modules_proofmanager_ProofManagerModule_verifyProofNative<'local>(
+     mut env: JNIEnv<'local>,
+     _class: JClass<'local>,
+     proof: JByteArray<'local>,
+     commitment: JByteArray<'local>,
+ ) -> jboolean {
+     let convert_array = |array: JByteArray<'local>| -> Vec<u8> {
+         env.convert_byte_array(&array)
+             .map(|bytes| bytes.iter().map(|&b| b as u8).collect())
+             .unwrap_or_default()
+     };
+ 
+     let proof_data = convert_array(proof);
+     let commitment_data = convert_array(commitment);
+ 
+     // Use global ProofManager
+     match PROOF_MANAGER.lock().unwrap().verify_proof(
+         SerializedProof { data: proof_data },
+         commitment_data,
+     ) {
+         Ok(result) => if result { 1 } else { 0 },
+         Err(e) => {
+             env.throw_new("java/lang/Exception", e.to_string())
+                 .expect("Failed to throw exception");
+             0
+         }
+     }
+ }#[no_mangle]
+ pub extern "system" fn Java_expo_modules_proofmanager_ProofManagerModule_generateAddressNative<'local>(
+     mut env: JNIEnv<'local>,
+     _class: JClass<'local>,
+     seed_phrase: JString<'local>,
+     index: jint,
+ ) -> JObject<'local> {
+     let seed_phrase: String = env
+         .get_string(&seed_phrase)
+         .expect("Couldn't get java string!")
+         .into();
+ 
+     // Use global ProofManager
+     match PROOF_MANAGER.lock().unwrap().generate_address(seed_phrase, index as u32) {
+         Ok(address_info) => {
             // Create a new HashMap
             let hash_map_class = env.find_class("java/util/HashMap").expect("Failed to find HashMap class");
             let hash_map = env.new_object(
@@ -172,7 +176,6 @@ pub extern "system" fn Java_expo_modules_proofmanager_ProofManagerModule_generat
 
 use std::str::FromStr;
 use rand::rngs::OsRng;
-use std::sync::Arc;
 use anyhow::Result;
 use ark_groth16::{prepare_verifying_key, r1cs_to_qap::LibsnarkReduction, Groth16, PreparedVerifyingKey, Proof, ProvingKey};
 use base64::prelude::*;
@@ -236,7 +239,7 @@ pub enum ProofError {
 }
 
 // Simplified FFI types
-#[derive(uniffi::Record)]
+#[derive(uniffi::Record, Clone)]
 pub struct SerializedProof {
     pub data: Vec<u8>,
 }
@@ -257,7 +260,7 @@ pub struct ProofInput {
 }
 
 
-#[derive(uniffi::Record)]
+#[derive(uniffi::Record, Clone)]
 pub struct ProofWithCommitment {
     pub proof: SerializedProof,
     pub commitment: Vec<u8>,
@@ -511,34 +514,49 @@ impl ProofManager {
         proof: SerializedProof,
         commitment: Vec<u8>,
     ) -> Result<bool, ProofError> {
-        println!("Verifying proof with commitment: {:?}", commitment);
+        println!("Starting proof verification");
+        println!("Proof length: {}", proof.data.len());
+        println!("Commitment length: {}", commitment.len());
+        println!("Commitment bytes: {:?}", commitment);
         
-        let proof_bytes: [u8; GROTH16_PROOF_LENGTH_BYTES] = proof.data.try_into()
+        let proof_bytes: [u8; GROTH16_PROOF_LENGTH_BYTES] = proof.data.clone().try_into()
             .map_err(|_| ProofError::SerializationError {
-                error_message: "Invalid proof length".to_string(),
+                error_message: format!("Invalid proof length, expected {} got {}", 
+                    GROTH16_PROOF_LENGTH_BYTES, proof.data.len())
             })?;
             
         let proof = OutputProof(proof_bytes);
         
         // Convert Vec<u8> to [u8; 32] for StateCommitment
-        let commitment_bytes: [u8; 32] = commitment.try_into()
-        .map_err(|_| ProofError::SerializationError {
-            error_message: "Invalid commitment length".to_string(),
-        })?;
-    
-        let note_commitment = StateCommitment::try_from(commitment_bytes)
+        let commitment_bytes: [u8; 32] = commitment.clone().try_into()
             .map_err(|_| ProofError::SerializationError {
-                error_message: "Invalid commitment format".to_string(),
+                error_message: format!("Invalid commitment length, expected 32 got {}", 
+                    commitment.len())
+            })?;
+    
+        println!("Commitment bytes: {:?}", commitment_bytes);
+        
+        let note_commitment = StateCommitment::try_from(commitment_bytes)
+            .map_err(|e| ProofError::SerializationError {
+                error_message: format!("Invalid commitment format: {}", e)
             })?;
             
         let public = OutputProofPublic { note_commitment };
-
-        proof.verify(&self.verifying_key, public)
-            .map_err(|e| ProofError::VerificationFailed {
-                error_message: e.to_string(),
-            })?;
-
-        Ok(true)
+    
+        println!("Created public input with note commitment: {:?}", note_commitment);
+    
+        match proof.verify(&self.verifying_key, public) {
+            Ok(_) => {
+                println!("Proof verified successfully");
+                Ok(true)
+            },
+            Err(e) => {
+                println!("Proof verification failed: {:?}", e);
+                Err(ProofError::VerificationFailed {
+                    error_message: e.to_string(),
+                })
+            }
+        }
     }
 
     // Helper methods
