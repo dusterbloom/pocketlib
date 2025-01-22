@@ -4,39 +4,63 @@ import { HelloWave } from '@/components/HelloWave';
 import ParallaxScrollView from '@/components/ParallaxScrollView';
 import { ThemedText } from '@/components/ThemedText';
 import { ThemedView } from '@/components/ThemedView';
-import { 
-  hello, 
-  rustAdd, 
-  generateAddress, 
-  createProof, 
-  verifyProof 
-} from '@modules/proofmanager';
 
+import * as ProofManager from '@/modules/proofmanager'
+import { ProofInput, SerializedProof } from '../../modules/proofmanager/src/ProofManager.types';
 import { useEffect, useState } from 'react';
 import { Text, View } from "react-native";
 
 
-const proof =  createProof({
-  seed_phrase: "garage advice weekend this dose mango sign horse tool torch mosquito repeat sentence valid scheme pull punch need prosper build actor say cancel allow",
-  amount: 1000,
-  assetId: 1,
-  addressIndex: 0
-});
 
-console.log("Proof", proof);
 
 export default function HomeScreen() {
-
-  const [value, setValue] = useState<null | number>(null);
+  const [proofResult, setProofResult] = useState<SerializedProof | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  // const [value, setValue] = useState<null | any>(null);
   
-  // useEffect(() => {
-  //   async function doFetch() {
-  //     const result = await rustAdd(40, 12);
-  //     setValue(result);
-  //     console.log("Results from rust async", result)
-  //   }
-  //   doFetch();
-  // }, []);
+  
+
+  useEffect(() => {
+    async function generateProof() {
+        try {
+            // Example proof input
+            const input: ProofInput = {
+                seedPhrase: "garage advice weekend this dose mango sign horse tool torch mosquito repeat sentence valid scheme pull punch need prosper build actor say cancel allow",
+                amount: 1000,
+                assetId: 1,
+                addressIndex: 0
+            };
+
+            console.log("Generating proof with input:", input);
+            
+            // Generate address (optional, for debugging)
+            const address = await ProofManager.generateAddress(input.seedPhrase, input.addressIndex);
+            console.log("Generated address:", address);
+
+            // Generate proof and get the commitment
+            const result = await ProofManager.createProof(input);
+            console.log("Generated proof result:", result);
+
+            if (!result.proof || !result.commitment) {
+                throw new Error("Missing proof or commitment in result");
+            }
+
+            // Store proof result
+            setProofResult(result);
+
+            // Verify proof using the commitment that was just generated
+            const isValid = await ProofManager.verifyProof(result.proof, result.commitment);
+            console.log("Proof verification result:", isValid);
+
+        } catch (err) {
+            console.error("Error in proof generation:", err);
+            setError(err instanceof Error ? err.message : "Unknown error");
+        }
+    }
+
+    generateProof();
+}, []);
+
 
 
   return (
@@ -55,8 +79,9 @@ export default function HomeScreen() {
       <ThemedView style={styles.stepContainer}>
         <ThemedText type="subtitle">Step 1: Try it</ThemedText>
         <Text >
-        {/* { `The value is: ${value}`} */}
+        { `The proof is: ${proofResult}`}
       </Text>
+
 
         <ThemedText>
           Edit <ThemedText type="defaultSemiBold">app/(tabs)/index.tsx</ThemedText> to see changes.

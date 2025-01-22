@@ -6,84 +6,79 @@ use jni::sys::{jlong, jint, jboolean, jobject};
 
 uniffi::setup_scaffolding!();
 
-#[no_mangle]
-pub extern "system" fn Java_expo_modules_proofmanager_ProofManagerModule_createProofNative<'local>(
-    mut env: JNIEnv<'local>,
-    _class: JClass<'local>,
-    seed_phrase: JString<'local>,
-    amount: jlong,
-    asset_id: jlong,
-    address_index: jint,
-) -> jobject {
-    let seed_phrase: String = env
-        .get_string(&seed_phrase)
-        .expect("Couldn't get java string!")
-        .into();
+ // Update the JNI function to use the new type
+ #[no_mangle]
+ pub extern "system" fn Java_expo_modules_proofmanager_ProofManagerModule_createProofNative<'local>(
+     mut env: JNIEnv<'local>,
+     _class: JClass<'local>,
+     seed_phrase: JString<'local>,
+     amount: jlong,
+     asset_id: jlong,
+     address_index: jint,
+ ) -> jobject {
+     let seed_phrase: String = env
+         .get_string(&seed_phrase)
+         .expect("Couldn't get java string!")
+         .into();
 
-    println!("Rust: Creating proof with seed_phrase length={}, amount={}, asset_id={}, address_index={}", 
-             seed_phrase.len(), amount, asset_id, address_index);
+     let input = ProofInput {
+         seed_phrase,
+         amount: amount as u64,
+         asset_id: asset_id as u64,
+         address_index: address_index as u32,
+     };
 
-    let input = ProofInput {
-        seed_phrase,
-        amount: amount as u64,
-        asset_id: asset_id as u64,
-        address_index: address_index as u32,
-    };
+     // Create ProofManager once and reuse
+     let mgr = ProofManager::new().expect("Failed to create ProofManager");
+     
+     match mgr.create_proof_with_commitment(input) {
+         Ok(proof_with_commitment) => {
+             let hash_map_class = env.find_class("java/util/HashMap")
+                 .expect("Failed to find HashMap class");
+             let hash_map = env.new_object(hash_map_class, "()V", &[])
+                 .expect("Failed to create HashMap");
 
-    match ProofManager::new().and_then(|mgr| {
-        mgr.create_proof(input.clone()).map(|proof| {
-            let commitment = mgr.generate_commitment(&input);
-            (proof, commitment)
-        })
-    }) {
-        Ok((proof, commitment)) => {
-            // Get the class and create the hashmap first
-            let hash_map_class = env.find_class("java/util/HashMap")
-                .expect("Failed to find HashMap class");
-            let hash_map = env.new_object(hash_map_class, "()V", &[])
-                .expect("Failed to create HashMap");
+             // Create keys first
+             let proof_key = env.new_string("proof")
+                 .expect("Failed to create proof key");
+             let commitment_key = env.new_string("commitment")
+                 .expect("Failed to create commitment key");
 
-            // Create keys first
-            let proof_key = env.new_string("proof")
-                .expect("Failed to create proof key");
-            let commitment_key = env.new_string("commitment")
-                .expect("Failed to create commitment key");
+             // Create byte arrays
+             let proof_array = env.byte_array_from_slice(&proof_with_commitment.proof.data)
+                 .expect("Failed to create proof value");
+             let commitment_array = env.byte_array_from_slice(&proof_with_commitment.commitment)
+                 .expect("Failed to create commitment value");
 
-            // Create byte arrays
-            let proof_array = env.byte_array_from_slice(&proof.data)
-                .expect("Failed to create proof value");
-            let commitment_array = env.byte_array_from_slice(&commitment)
-                .expect("Failed to create commitment value");
+             // Add proof and commitment to HashMap
+             env.call_method(
+                 &hash_map,
+                 "put",
+                 "(Ljava/lang/Object;Ljava/lang/Object;)Ljava/lang/Object;",
+                 &[JValue::Object(proof_key.as_ref()), JValue::Object(&proof_array)]
+             ).expect("Failed to put proof");
 
-            // Add proof
-            env.call_method(
-                &hash_map,
-                "put",
-                "(Ljava/lang/Object;Ljava/lang/Object;)Ljava/lang/Object;",
-                &[JValue::Object(proof_key.as_ref()), JValue::Object(&proof_array)]
-            ).expect("Failed to put proof");
+             env.call_method(
+                 &hash_map,
+                 "put",
+                 "(Ljava/lang/Object;Ljava/lang/Object;)Ljava/lang/Object;",
+                 &[JValue::Object(commitment_key.as_ref()), JValue::Object(&commitment_array)]
+             ).expect("Failed to put commitment");
 
-            // Add commitment
-            env.call_method(
-                &hash_map,
-                "put",
-                "(Ljava/lang/Object;Ljava/lang/Object;)Ljava/lang/Object;",
-                &[JValue::Object(commitment_key.as_ref()), JValue::Object(&commitment_array)]
-            ).expect("Failed to put commitment");
-
-            hash_map.into_raw()
-        },
-        Err(e) => {
-            let hash_map_class = env.find_class("java/util/HashMap")
-                .expect("Failed to find HashMap class");
-            env.throw_new("java/lang/Exception", e.to_string())
-                .expect("Failed to throw exception");
-            env.new_object(hash_map_class, "()V", &[])
-                .expect("Failed to create empty HashMap")
-                .into_raw()
-        }
-    }
-}
+             hash_map.into_raw()
+         },
+         Err(e) => {
+             let hash_map_class = env.find_class("java/util/HashMap")
+                 .expect("Failed to find HashMap class");
+             env.throw_new("java/lang/Exception", e.to_string())
+                 .expect("Failed to throw exception");
+             env.new_object(hash_map_class, "()V", &[])
+                 .expect("Failed to create empty HashMap")
+                 .into_raw()
+         }
+     }
+ 
+ }
 
 #[no_mangle]
 pub extern "system" fn Java_expo_modules_proofmanager_ProofManagerModule_verifyProofNative<'local>(
@@ -259,6 +254,13 @@ pub struct ProofInput {
     pub amount: u64,
     pub asset_id: u64,
     pub address_index: u32,
+}
+
+
+#[derive(uniffi::Record)]
+pub struct ProofWithCommitment {
+    pub proof: SerializedProof,
+    pub commitment: Vec<u8>,
 }
 
 // Circuit implementation
@@ -470,11 +472,47 @@ impl ProofManager {
         })
     }
 
+    fn create_proof_with_commitment(&self, input: ProofInput) -> Result<ProofWithCommitment, ProofError> {
+        // Generate address and note
+        let address = self.generate_address(input.seed_phrase, input.address_index)?;
+        let note = self.create_note(address, input.amount, input.asset_id)?;
+        
+        // Generate commitment first
+        let commitment = note.commit();
+        let commitment_bytes = commitment.0.to_bytes().to_vec();
+        
+        // Create proof using same note
+        let public = OutputProofPublic {
+            note_commitment: commitment,
+        };
+        let private = OutputProofPrivate { note };
+
+        let mut rng = thread_rng();
+        let proof = OutputProof::prove(
+            Fq::rand(&mut rng),
+            Fq::rand(&mut rng),
+            &self.proving_key,
+            public,
+            private,
+        ).map_err(|e| ProofError::ProofGenerationFailed {
+            error_message: e.to_string(),
+        })?;
+
+        Ok(ProofWithCommitment {
+            proof: SerializedProof {
+                data: proof.0.to_vec(),
+            },
+            commitment: commitment_bytes,
+        })
+    }
+
     fn verify_proof(
         &self,
         proof: SerializedProof,
         commitment: Vec<u8>,
     ) -> Result<bool, ProofError> {
+        println!("Verifying proof with commitment: {:?}", commitment);
+        
         let proof_bytes: [u8; GROTH16_PROOF_LENGTH_BYTES] = proof.data.try_into()
             .map_err(|_| ProofError::SerializationError {
                 error_message: "Invalid proof length".to_string(),
@@ -482,7 +520,7 @@ impl ProofManager {
             
         let proof = OutputProof(proof_bytes);
         
-          // Convert Vec<u8> to [u8; 32] for StateCommitment
+        // Convert Vec<u8> to [u8; 32] for StateCommitment
         let commitment_bytes: [u8; 32] = commitment.try_into()
         .map_err(|_| ProofError::SerializationError {
             error_message: "Invalid commitment length".to_string(),

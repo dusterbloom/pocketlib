@@ -728,6 +728,8 @@ internal interface UniffiForeignFutureCompleteVoid : com.sun.jna.Callback {
 
 
 
+
+
 // A JNA Library to expose the extern-C FFI definitions.
 // This is an implementation detail which will be called internally by the public API.
 
@@ -754,6 +756,8 @@ internal interface UniffiLib : Library {
     fun uniffi_proofmanager_fn_constructor_proofmanager_new(uniffi_out_err: UniffiRustCallStatus, 
     ): Pointer
     fun uniffi_proofmanager_fn_method_proofmanager_create_proof(`ptr`: Pointer,`input`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
+    ): RustBuffer.ByValue
+    fun uniffi_proofmanager_fn_method_proofmanager_create_proof_with_commitment(`ptr`: Pointer,`input`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
     ): RustBuffer.ByValue
     fun uniffi_proofmanager_fn_method_proofmanager_debug_commitment(`ptr`: Pointer,`commitment`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
     ): RustBuffer.ByValue
@@ -879,6 +883,8 @@ internal interface UniffiLib : Library {
     ): Unit
     fun uniffi_proofmanager_checksum_method_proofmanager_create_proof(
     ): Short
+    fun uniffi_proofmanager_checksum_method_proofmanager_create_proof_with_commitment(
+    ): Short
     fun uniffi_proofmanager_checksum_method_proofmanager_debug_commitment(
     ): Short
     fun uniffi_proofmanager_checksum_method_proofmanager_debug_proof(
@@ -909,6 +915,9 @@ private fun uniffiCheckContractApiVersion(lib: UniffiLib) {
 @Suppress("UNUSED_PARAMETER")
 private fun uniffiCheckApiChecksums(lib: UniffiLib) {
     if (lib.uniffi_proofmanager_checksum_method_proofmanager_create_proof() != 47534.toShort()) {
+        throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
+    }
+    if (lib.uniffi_proofmanager_checksum_method_proofmanager_create_proof_with_commitment() != 10175.toShort()) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
     if (lib.uniffi_proofmanager_checksum_method_proofmanager_debug_commitment() != 60862.toShort()) {
@@ -1287,6 +1296,8 @@ public interface ProofManagerInterface {
     
     fun `createProof`(`input`: ProofInput): SerializedProof
     
+    fun `createProofWithCommitment`(`input`: ProofInput): ProofWithCommitment
+    
     fun `debugCommitment`(`commitment`: kotlin.ByteArray): kotlin.String
     
     fun `debugProof`(`proof`: SerializedProof): kotlin.String
@@ -1394,6 +1405,19 @@ open class ProofManager: Disposable, AutoCloseable, ProofManagerInterface {
     callWithPointer {
     uniffiRustCallWithError(ProofException) { _status ->
     UniffiLib.INSTANCE.uniffi_proofmanager_fn_method_proofmanager_create_proof(
+        it, FfiConverterTypeProofInput.lower(`input`),_status)
+}
+    }
+    )
+    }
+    
+
+    
+    @Throws(ProofException::class)override fun `createProofWithCommitment`(`input`: ProofInput): ProofWithCommitment {
+            return FfiConverterTypeProofWithCommitment.lift(
+    callWithPointer {
+    uniffiRustCallWithError(ProofException) { _status ->
+    UniffiLib.INSTANCE.uniffi_proofmanager_fn_method_proofmanager_create_proof_with_commitment(
         it, FfiConverterTypeProofInput.lower(`input`),_status)
 }
     }
@@ -1574,6 +1598,38 @@ public object FfiConverterTypeProofInput: FfiConverterRustBuffer<ProofInput> {
             FfiConverterULong.write(value.`amount`, buf)
             FfiConverterULong.write(value.`assetId`, buf)
             FfiConverterUInt.write(value.`addressIndex`, buf)
+    }
+}
+
+
+
+data class ProofWithCommitment (
+    var `proof`: SerializedProof, 
+    var `commitment`: kotlin.ByteArray
+) {
+    
+    companion object
+}
+
+/**
+ * @suppress
+ */
+public object FfiConverterTypeProofWithCommitment: FfiConverterRustBuffer<ProofWithCommitment> {
+    override fun read(buf: ByteBuffer): ProofWithCommitment {
+        return ProofWithCommitment(
+            FfiConverterTypeSerializedProof.read(buf),
+            FfiConverterByteArray.read(buf),
+        )
+    }
+
+    override fun allocationSize(value: ProofWithCommitment) = (
+            FfiConverterTypeSerializedProof.allocationSize(value.`proof`) +
+            FfiConverterByteArray.allocationSize(value.`commitment`)
+    )
+
+    override fun write(value: ProofWithCommitment, buf: ByteBuffer) {
+            FfiConverterTypeSerializedProof.write(value.`proof`, buf)
+            FfiConverterByteArray.write(value.`commitment`, buf)
     }
 }
 
