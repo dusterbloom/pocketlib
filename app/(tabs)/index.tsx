@@ -9,16 +9,14 @@ import * as ProofManager from '@/modules/proofmanager'
 import { ProofInput, SerializedProof } from '../../modules/proofmanager/src/ProofManager.types';
 import { useEffect, useState } from 'react';
 import { Text, View } from "react-native";
+import { bytesToHex } from '@/utils/hex';
 
 
 
 
 export default function HomeScreen() {
   const [proofResult, setProofResult] = useState<SerializedProof | null>(null);
-  const [error, setError] = useState<string | null>(null);
-  // const [value, setValue] = useState<null | any>(null);
-  
-  
+  const [error, setError] = useState<string | null>(null);  
 
   useEffect(() => {
     async function generateProof() {
@@ -37,9 +35,9 @@ export default function HomeScreen() {
             console.log("Generated address:", address);
 
             // Generate proof
-            const proof = await ProofManager.createProof(input);
-            console.log("Generated proof:", proof);
-            setProofResult(proof);
+            // const proof = await ProofManager.createProof(input);
+            // console.log("Generated proof:", proof);
+            // setProofResult(proof);
 
             // The commitment should be derived from the note created with our proof
             // For testing, you can print out the actual commitment from your Rust code
@@ -53,6 +51,13 @@ export default function HomeScreen() {
               proof: result.proof,
               commitment: result.commitment
             });
+
+            const proofHex =  bytesToHex(result.proof);
+            const commitmentHex =  bytesToHex(result.commitment);
+
+            console.log("Generated proof hex result:", {
+        proofHex, commitmentHex
+          });
 
             // Now verify using the actual commitment
             const isValid = await ProofManager.verifyProof(result.proof, result.commitment);
