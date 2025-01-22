@@ -18,61 +18,91 @@ export default function HomeScreen() {
   const [proofResult, setProofResult] = useState<SerializedProof | null>(null);
   const [error, setError] = useState<string | null>(null);  
 
+  const [timings, setTimings] = useState<{
+    addressGenTime: number | null;
+    proofGenTime: number | null;
+    verifyTime: number | null;
+  }>({
+    addressGenTime: null,
+    proofGenTime: null,
+    verifyTime: null,
+  });
+  
+
   useEffect(() => {
     async function generateProof() {
-        try {
-            const input: ProofInput = {
-                seedPhrase: "garage advice weekend this dose mango sign horse tool torch mosquito repeat sentence valid scheme pull punch need prosper build actor say cancel allow",
-                amount: 1000,
-                assetId: 1,
-                addressIndex: 0
-            };
-
-            console.log("Generating proof with input:", input);
-            
-            // First generate an address - we'll need this
-            const address = await ProofManager.generateAddress(input.seedPhrase, input.addressIndex);
-            console.log("Generated address:", address);
-
-            // Generate proof
-            // const proof = await ProofManager.createProof(input);
-            // console.log("Generated proof:", proof);
-            // setProofResult(proof);
-
-            // The commitment should be derived from the note created with our proof
-            // For testing, you can print out the actual commitment from your Rust code
-            // by adding debug prints in the createProof function
-            
-            // Generate proof and get commitment
-            const result = await ProofManager.createProof(input);
-            console.log("Generated proof result:", {
-              proofLength: result.proof.length,
-              commitmentLength: result.commitment.length,
-              proof: result.proof,
-              commitment: result.commitment
-            });
-
-            const proofHex =  bytesToHex(result.proof);
-            const commitmentHex =  bytesToHex(result.commitment);
-
-            console.log("Generated proof hex result:", {
-        proofHex, commitmentHex
-          });
-
-            // Now verify using the actual commitment
-            const isValid = await ProofManager.verifyProof(result.proof, result.commitment);
-            console.log("Proof verification result:", isValid);
-
-        } catch (err) {
-            console.error("Error in proof generation:", err);
-            setError(err instanceof Error ? err.message : "Unknown error");
-        }
+      try {
+        const input: ProofInput = {
+          seedPhrase:
+            'garage advice weekend this dose mango sign horse tool torch mosquito repeat sentence valid scheme pull punch need prosper build actor say cancel allow',
+          amount: 1000,
+          assetId: 1,
+          addressIndex: 0,
+        };
+  
+        console.log('Generating proof with input:', input);
+  
+        // --- Step 1: generateAddress ---
+        const startAddr = Date.now();
+        const address = await ProofManager.generateAddress(
+          input.seedPhrase,
+          input.addressIndex
+        );
+        const endAddr = Date.now();
+        const addressGenTime = endAddr - startAddr;
+  
+        console.log('Generated address:', address);
+        console.log(`Address generation took ${addressGenTime}ms`);
+  
+        // Update address-gen timing in state
+        setTimings((prev) => ({ ...prev, addressGenTime }));
+  
+        // --- Step 2: createProof ---
+        const startProof = Date.now();
+        const result = await ProofManager.createProof(input);
+        const endProof = Date.now();
+        const proofGenTime = endProof - startProof;
+  
+        console.log('Generated proof result:', {
+          proofLength: result.proof.length,
+          commitmentLength: result.commitment.length,
+          proof: result.proof,
+          commitment: result.commitment,
+        });
+        console.log(`Proof generation took ${proofGenTime}ms`);
+  
+        // Update proof-gen timing in state
+        setTimings((prev) => ({ ...prev, proofGenTime }));
+  
+        const proofHex = bytesToHex(result.proof);
+        const commitmentHex = bytesToHex(result.commitment);
+  
+        console.log('Generated proof hex result:', {
+          proofHex,
+          commitmentHex,
+        });
+  
+        // --- Step 3: verifyProof ---
+        const startVerify = Date.now();
+        const isValid = await ProofManager.verifyProof(result.proof, result.commitment);
+        const endVerify = Date.now();
+        const verifyTime = endVerify - startVerify;
+  
+        console.log('Proof verification result:', isValid);
+        console.log(`Proof verification took ${verifyTime}ms`);
+  
+        // Update verification timing in state
+        setTimings((prev) => ({ ...prev, verifyTime }));
+  
+      } catch (err) {
+        console.error('Error in proof generation:', err);
+        setError(err instanceof Error ? err.message : 'Unknown error');
+      }
     }
-
+  
     generateProof();
-}, []);
-
-
+  }, []);
+  
 
   return (
     <ParallaxScrollView
