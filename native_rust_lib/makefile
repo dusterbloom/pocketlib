@@ -15,12 +15,16 @@ ANDROID_NDK_TOOLCHAIN := $(ANDROID_NDK_HOME)/toolchains/llvm/prebuilt/darwin-x86
 
 # Output Directories
 BINDINGS_DIR := ./bindings
+IOS_BINDINGS_DIR := $(BINDINGS_DIR)/ios
+ANDROID_BINDINGS_DIR := $(BINDINGS_DIR)/android
+
+
 
 ANDROID_OUTPUT_DIR := ../modules/proofmanager/android/src/main
 
 IOS_OUTPUT_DIR := ../modules/proofmanager/ios
 IOS_FRAMEWORK_NAME := ProofManager.xcframework
-IOS_FRAMEWORK_PATH := $(IOS_OUTPUT_DIR)/$(IOS_FRAMEWORK_NAME) #WRONG
+IOS_FRAMEWORK_PATH := $(IOS_OUTPUT_DIR)/$(IOS_FRAMEWORK_NAME) 
 IOS_RUST_DIR := $(IOS_OUTPUT_DIR)/rust
 
 
@@ -78,31 +82,29 @@ ios-build:
 	done
 
 	@echo "→ Generating C headers..."
-	@cbindgen --lang c --crate native_rust_lib --output native_rust_lib.h
+	@cd $(shell pwd) && cbindgen --config cbindgen.toml --crate proofmanager --output $(LIB_NAME).h
 	
 	@echo "→ Generating Swift bindings..."
-	@mkdir -p $(BINDINGS_DIR)
+	@mkdir -p $(IOS_BINDINGS_DIR)
 	@cargo run --bin uniffi-bindgen generate \
-		--library ./target/aarch64-apple-ios-sim/release/$(LIB_NAME).a \
-		--language swift \
-		--out-dir $(BINDINGS_DIR)	
+    --library ./target/aarch64-apple-ios-sim/release/$(LIB_NAME).a \
+    --language swift \
+    --out-dir $(IOS_BINDINGS_DIR)
 	
 	@echo "→ Creating XCFramework..."
-	@echo "Debug - Output path: $(IOS_FRAMEWORK_PATH)"
-	@mv $(BINDINGS_DIR)/$(PROJECT_NAME)FFI.modulemap $(BINDINGS_DIR)/module.modulemap
-	@mkdir -p "$(IOS_OUTPUT_DIR)"
-	@rm -rf "$(IOS_FRAMEWORK_PATH)"
+	@mv $(IOS_BINDINGS_DIR)/$(PROJECT_NAME)FFI.modulemap $(IOS_BINDINGS_DIR)/module.modulemap
+	@mkdir -p "$(IOS_OUTPUT_DIR)" 
 	@xcodebuild -create-xcframework \
-		-library "$(IOS_SIM_LIB)" -headers $(BINDINGS_DIR) \
-		-library "$(IOS_DEVICE_LIB)" -headers $(BINDINGS_DIR) \
-		-output "$(IOS_FRAMEWORK_PATH)"
+        -library "$(IOS_DEVICE_LIB)" -headers $(IOS_BINDINGS_DIR) \
+        -library "$(IOS_SIM_LIB)" -headers $(IOS_BINDINGS_DIR) \
+        -output "$(IOS_OUTPUT_DIR)/$(IOS_FRAMEWORK_NAME)"
 
 ios-copy:
 	@echo "$(BOLD)Copying iOS artifacts...$(RESET)"
 	@mkdir -p $(IOS_RUST_DIR)
-	@cp ./target/aarch64-apple-ios/release/libnative_rust_lib.a $(IOS_RUST_DIR)/
-	@cp ./native_rust_lib.h $(IOS_RUST_DIR)/
-	@cp $(BINDINGS_DIR)/$(PROJECT_NAME).swift $(IOS_OUTPUT_DIR)/
+	@cp ./target/aarch64-apple-ios/release/$(LIB_NAME).a $(IOS_RUST_DIR)/
+	@cp ./$(LIB_NAME).h $(IOS_RUST_DIR)/
+	@cp $(IOS_BINDINGS_DIR)/$(PROJECT_NAME).swift $(IOS_OUTPUT_DIR)/
 	@echo "$(GREEN)✓ iOS artifacts copied to $(IOS_OUTPUT_DIR)$(RESET)"
 
 
@@ -141,21 +143,22 @@ android-build:
 	cargo build --target $(ANDROID_TARGET) --release 
 	
 	@echo "→ Generating Kotlin bindings..."
-	@mkdir -p $(BINDINGS_DIR)
+	@mkdir -p $(ANDROID_BINDINGS_DIR)
 	@cargo run --features=uniffi/cli --bin uniffi-bindgen generate \
-		--library ./target/$(ANDROID_TARGET)/release/$(LIB_NAME).so \
-		--language kotlin \
-		--out-dir $(BINDINGS_DIR)
+    --library ./target/$(ANDROID_TARGET)/release/$(LIB_NAME).so \
+    --language kotlin \
+    --out-dir $(ANDROID_BINDINGS_DIR)
+
 
 android-copy:
 	@echo "$(BOLD)Copying Android artifacts...$(RESET)"
 	@mkdir -p $(ANDROID_ABI_DIR)
 	@mkdir -p $(ANDROID_KOTLIN_DIR)
 	@cp ./target/$(ANDROID_TARGET)/release/$(LIB_NAME).so $(ANDROID_ABI_DIR)/
-	@if [ -f "$(BINDINGS_DIR)/uniffi/$(PROJECT_NAME)/$(PROJECT_NAME).kt" ]; then \
-		cp $(BINDINGS_DIR)/uniffi/$(PROJECT_NAME)/$(PROJECT_NAME).kt $(ANDROID_KOTLIN_DIR)/; \
+	@if [ -f "$(ANDROID_BINDINGS_DIR)/uniffi/$(PROJECT_NAME)/$(PROJECT_NAME).kt" ]; then \
+		cp $(ANDROID_BINDINGS_DIR)/uniffi/$(PROJECT_NAME)/$(PROJECT_NAME).kt $(ANDROID_KOTLIN_DIR)/; \
 	else \
-		echo "$(YELLOW)Warning: proofmanager.kt not found in $(BINDINGS_DIR)$(RESET)"; \
+		echo "$(YELLOW)Warning: proofmanager.kt not found in $(ANDROID_BINDINGS_DIR)$(RESET)"; \
 		exit 1; \
 	fi
 	@echo "$(GREEN)✓ Android artifacts copied$(RESET)"
