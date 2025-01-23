@@ -15,14 +15,16 @@ ANDROID_NDK_TOOLCHAIN := $(ANDROID_NDK_HOME)/toolchains/llvm/prebuilt/darwin-x86
 
 # Output Directories
 BINDINGS_DIR := ./bindings
-IOS_FRAMEWORK_NAME := ProofManager.xcframework
 
 ANDROID_OUTPUT_DIR := ../modules/proofmanager/android/src/main
-IOS_OUTPUT_DIR := ../../ios/CyclesPocket # WRONG
+
+IOS_OUTPUT_DIR := ../modules/proofmanager/ios
+IOS_FRAMEWORK_NAME := ProofManager.xcframework
 IOS_FRAMEWORK_PATH := $(IOS_OUTPUT_DIR)/$(IOS_FRAMEWORK_NAME) #WRONG
+IOS_RUST_DIR := $(IOS_OUTPUT_DIR)/rust
+
 
 # iOS Configuration
-# IOS_TARGETS := aarch64-apple-ios-sim
 IOS_TARGETS := aarch64-apple-ios aarch64-apple-ios-sim aarch64-apple-darwin
 
 # Target directories
@@ -74,6 +76,9 @@ ios-build:
 		echo "  Building for $$target..."; \
 		cargo build --release --target $$target || exit 1; \
 	done
+
+	@echo "→ Generating C headers..."
+	@cbindgen --lang c --crate native_rust_lib --output native_rust_lib.h
 	
 	@echo "→ Generating Swift bindings..."
 	@mkdir -p $(BINDINGS_DIR)
@@ -94,9 +99,22 @@ ios-build:
 
 ios-copy:
 	@echo "$(BOLD)Copying iOS artifacts...$(RESET)"
-	@mkdir -p $(IOS_OUTPUT_DIR)
+	@mkdir -p $(IOS_RUST_DIR)
+	@cp ./target/aarch64-apple-ios/release/libnative_rust_lib.a $(IOS_RUST_DIR)/
+	@cp ./native_rust_lib.h $(IOS_RUST_DIR)/
 	@cp $(BINDINGS_DIR)/$(PROJECT_NAME).swift $(IOS_OUTPUT_DIR)/
 	@echo "$(GREEN)✓ iOS artifacts copied to $(IOS_OUTPUT_DIR)$(RESET)"
+
+
+
+
+
+
+
+
+
+
+
 
 
 
