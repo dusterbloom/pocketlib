@@ -31,7 +31,8 @@ Pod::Spec.new do |s|
     s.source_files = "**/*.{h,m,mm,swift,hpp,cpp}"
     s.dependency 'ExpoModulesCore'
     
-    s.vendored_libraries = "ProofManager.xcframework/ios-arm64/libproofmanager.a"
+    
+    s.vendored_libraries = 'rust/libproofmanager.a'
     s.pod_target_xcconfig = {
       'DEFINES_MODULE' => 'YES',
       'EXCLUDED_ARCHS[sdk=iphonesimulator*]' => 'i386'
