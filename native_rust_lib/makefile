@@ -13,6 +13,10 @@ ANDROID_HOME ?= $(shell echo $$ANDROID_HOME)
 ANDROID_NDK_HOME ?= $(ANDROID_HOME)/ndk/26.3.11579264
 ANDROID_NDK_TOOLCHAIN := $(ANDROID_NDK_HOME)/toolchains/llvm/prebuilt/darwin-x86_64
 
+# Cleaning target directories
+CLEAN_TARGETS := $(IOS_BINDINGS_DIR) $(IOS_OUTPUT_DIR) $(IOS_RUST_DIR)
+
+
 # Output Directories
 BINDINGS_DIR := ./bindings
 IOS_BINDINGS_DIR := $(BINDINGS_DIR)/ios
@@ -29,7 +33,7 @@ IOS_RUST_DIR := $(IOS_OUTPUT_DIR)/rust
 
 
 # iOS Configuration
-IOS_TARGETS := aarch64-apple-ios aarch64-apple-ios-sim aarch64-apple-darwin
+IOS_TARGETS := aarch64-apple-ios aarch64-apple-ios-sim aarch64-apple-darwin 
 
 # Target directories
 IOS_SIM_LIB := target/aarch64-apple-ios-sim/release/$(LIB_NAME).a
@@ -69,56 +73,29 @@ ios: ios-build ios-copy
 
 ios-build:
 	@echo "$(BOLD)Building for iOS...$(RESET)"
-	@echo "→ Adding iOS targets..."
-	@for target in $(IOS_TARGETS); do \
-		rustup target add $$target 2>/dev/null || true; \
-		echo "  $(GREEN)✓ Added $$target$(RESET)"; \
-	done
-	
-	@echo "→ Building libraries..."
-	@for target in $(IOS_TARGETS); do \
-		echo "  Building for $$target..."; \
-		cargo build --release --target $$target || exit 1; \
+	cargo build
+	cargo run --bin uniffi-bindgen generate --library ./target/debug/libproofmanager.dylib --language swift --out-dir ./bindings
+	@echo "Building for iOS targets..."
+	for target in aarch64-apple-darwin aarch64-apple-ios aarch64-apple-ios-sim; do \
+		rustup target add $$target; \
+		cargo build --release --target=$$target; \
 	done
 
-	@echo "→ Generating C headers..."
-	@cd $(shell pwd) && cbindgen --config cbindgen.toml --crate proofmanager --output $(LIB_NAME).h
-	
-	@echo "→ Generating Swift bindings..."
-	@mkdir -p $(IOS_BINDINGS_DIR)
-	@cargo run --bin uniffi-bindgen generate \
-    --library ./target/aarch64-apple-ios-sim/release/$(LIB_NAME).a \
-    --language swift \
-    --out-dir $(IOS_BINDINGS_DIR)
-	
-	@echo "→ Creating XCFramework..."
-	@mv $(IOS_BINDINGS_DIR)/$(PROJECT_NAME)FFI.modulemap $(IOS_BINDINGS_DIR)/module.modulemap
-	@mkdir -p "$(IOS_OUTPUT_DIR)" 
-	@xcodebuild -create-xcframework \
-        -library "$(IOS_DEVICE_LIB)" -headers $(IOS_BINDINGS_DIR) \
-        -library "$(IOS_SIM_LIB)" -headers $(IOS_BINDINGS_DIR) \
-        -output "$(IOS_OUTPUT_DIR)/$(IOS_FRAMEWORK_NAME)"
+	@echo "Setting up XCFramework..."
+	mv ./bindings/proofmanagerFFI.modulemap ./bindings/module.modulemap
+	rm -rf  "$(IOS_OUTPUT_DIR)/$(IOS_FRAMEWORK_NAME).xcframework"
+	xcodebuild -create-xcframework \
+		-library ./target/aarch64-apple-ios-sim/release/libproofmanager.a -headers ./bindings \
+		-library ./target/aarch64-apple-ios/release/libproofmanager.a -headers ./bindings \
+		-output "ios/ProofManager.xcframework"
+
 
 ios-copy:
 	@echo "$(BOLD)Copying iOS artifacts...$(RESET)"
-	@mkdir -p $(IOS_RUST_DIR)
-	@cp ./target/aarch64-apple-ios/release/$(LIB_NAME).a $(IOS_RUST_DIR)/
-	@cp ./$(LIB_NAME).h $(IOS_RUST_DIR)/
-	@cp $(IOS_BINDINGS_DIR)/$(PROJECT_NAME).swift $(IOS_OUTPUT_DIR)/
+	@mkdir -p $(IOS_OUTPUT_DIR)
+	rm -rf ../modules/proofmanager/ios/ProofManager.xcframework
+	@cp -r ./ios/ProofManager.xcframework ../modules/proofmanager/ios
 	@echo "$(GREEN)✓ iOS artifacts copied to $(IOS_OUTPUT_DIR)$(RESET)"
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 
 
@@ -167,6 +144,7 @@ android-copy:
 clean:
 	@echo "$(BOLD)Cleaning build artifacts...$(RESET)"
 	@cargo clean
+	@rm -rf $(CLEAN_TARGETS)
 	@rm -rf $(BINDINGS_DIR)
 	@rm -rf ./ios/$(IOS_FRAMEWORK_NAME)
 	@rm -rf $(IOS_OUTPUT_DIR)/$(IOS_FRAMEWORK_NAME)
