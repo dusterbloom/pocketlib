@@ -83,20 +83,23 @@ ios-build:
 
 	@echo "Setting up XCFramework..."
 	mv ./bindings/proofmanagerFFI.modulemap ./bindings/module.modulemap
-	rm -rf  "$(IOS_OUTPUT_DIR)/$(IOS_FRAMEWORK_NAME).xcframework"
+	# Clean the output directory first
+	rm -rf "ios/ProofManager.xcframework"
+	rm -rf "../modules/proofmanager/ios/ProofManager.xcframework"
 	xcodebuild -create-xcframework \
 		-library ./target/aarch64-apple-ios-sim/release/libproofmanager.a -headers ./bindings \
 		-library ./target/aarch64-apple-ios/release/libproofmanager.a -headers ./bindings \
 		-output "ios/ProofManager.xcframework"
 
-
 ios-copy:
 	@echo "$(BOLD)Copying iOS artifacts...$(RESET)"
 	@mkdir -p $(IOS_OUTPUT_DIR)
+	# Copy the XCFramework
 	rm -rf ../modules/proofmanager/ios/ProofManager.xcframework
 	@cp -r ./ios/ProofManager.xcframework ../modules/proofmanager/ios
+	# Copy the Swift bindings
+	@cp ./bindings/proofmanager.swift ../modules/proofmanager/ios/
 	@echo "$(GREEN)✓ iOS artifacts copied to $(IOS_OUTPUT_DIR)$(RESET)"
-
 
 
 # Android target

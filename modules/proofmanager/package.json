@@ -1,0 +1,7 @@
+{
+    "name": "proofmanager",
+    "version": "1.0.0",
+    "main": "index",
+    "module": "index",
+    "types": "src/ProofManager.types.ts"
+  }

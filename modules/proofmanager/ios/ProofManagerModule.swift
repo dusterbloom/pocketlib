@@ -1,6 +1,5 @@
-// modules/proofmanager/ios/ProofManagerModule.swift
-
 import ExpoModulesCore
+import Foundation
 
 public class ProofManagerModule: Module {
     private let proofManager = try! ProofManager()
@@ -25,8 +24,8 @@ public class ProofManagerModule: Module {
 
             let result = try proofManager.createProofWithCommitment(input: proofInput)
             return [
-                "proof": Array(result.proof.data),
-                "commitment": Array(result.commitment)
+                "proof": Array(result.proof.data).map { Int($0) },
+                "commitment": Array(result.commitment).map { Int($0) }
             ]
         }
 
@@ -47,9 +46,9 @@ public class ProofManagerModule: Module {
             )
             
             return [
-                "diversifier": Array(addressInfo.diversifier),
-                "transmissionKey": Array(addressInfo.transmissionKey),
-                "clueKey": Array(addressInfo.clueKey)
+                "diversifier": Array(addressInfo.diversifier).map { Int($0) },
+                "transmissionKey": Array(addressInfo.transmissionKey).map { Int($0) },
+                "clueKey": Array(addressInfo.clueKey).map { Int($0) }
             ]
         }
     }

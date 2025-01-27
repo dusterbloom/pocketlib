@@ -26,6 +26,7 @@
     },
     "plugins": [
       "expo-router",
+      ["./modules/proofmanager/plugin.js", {}],
       [
         "expo-splash-screen",
         {
