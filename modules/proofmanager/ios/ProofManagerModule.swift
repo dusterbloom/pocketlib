@@ -2,7 +2,9 @@ import ExpoModulesCore
 import Foundation
 
 public class ProofManagerModule: Module {
-    private let proofManager = try! ProofManager()
+    // Initialize ProofManager from the generated bindings
+    private var proofManager: ProofManager!
+
     
     public func definition() -> ModuleDefinition {
         Name("ProofManager")

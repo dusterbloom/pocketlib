@@ -26,7 +26,6 @@
     },
     "plugins": [
       "expo-router",
-      ["./modules/proofmanager/plugin.js", {}],
       [
         "expo-splash-screen",
         {
@@ -39,6 +38,12 @@
     ],
     "experiments": {
       "typedRoutes": true
+    },
+    "extra": {
+      "router": {
+        "origin": false
+      }
     }
+  
   }
 }

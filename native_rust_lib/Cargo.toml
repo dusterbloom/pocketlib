@@ -7,7 +7,6 @@ edition = "2021"
 name = "uniffi-bindgen"
 path = "src/bin/uniffi-bindgen.rs"
 
-
 [lib]
 crate-type = ["cdylib", "staticlib"]
 name = "proofmanager"
@@ -15,9 +14,11 @@ name = "proofmanager"
 
 [dependencies]
 thiserror = "1.0"
-jni = { version = "0.21.1", optional = false, default-features = false }
+jni                              = { version = "0.21.1", optional = false, default-features = false }
 uniffi                           = { version = "0.28.3", features = ["build", "bindgen", "cli"] }
 anyhow                           = { version = "1.0.94", default-features = false }
+
+
 ark-ff                           = { version = "0.4.0", default-features = false }
 ark-groth16                      = { version = "0.4.0", default-features = false }
 ark-serialize                    = { version = "0.4.0", default-features = false, features = ["derive"] }
@@ -44,8 +45,6 @@ serde                            = { version = "1.0.216", features = ["derive"],
 tracing                          = { version = "0.1.41", default-features = false }
 rand = "0.8.5"
 
-
-
 [dev-dependencies]
 proptest                         = { version = "1" }
 penumbra-num                     = { version = "0.80.9", default-features = false }
@@ -65,21 +64,13 @@ penumbra-tct                     = { git = "https://github.com/penumbra-zone/pen
 
 [build-dependencies]
 uniffi = { version = "0.28.3", features = ["build"] }
-# uniffi_bindgen = "0.28.3"
-# camino = "1.1.6"
-
-# [dev-dependencies]
-# uniffi = { version = "0.28.3", features = ["bindgen-tests"] }
-
-# [[bin.uniffi-bindgen.dependencies]]
-# uniffi = { version = "0.28.3", features = ["build"] }
-
-
 
 [target.'cfg(target_os = "ios")'.dependencies]
 objc = "0.2"
 objc-foundation = "0.1"
 tracing-oslog = "0.2.0"
+libc = "0.2.80" # Allows to use c types CString, c_char, etc.
+
 
 [target.'cfg(target_os = "android")'.dependencies]
 jni = { version = "0.21.1", default-features = false, features = ["invocation"] }

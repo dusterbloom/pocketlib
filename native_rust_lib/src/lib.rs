@@ -5,6 +5,7 @@ use jni::objects::{JClass, JString, JObject, JValue, JByteArray};
 use jni::sys::{jlong, jint, jboolean, jobject};
 use std::sync::{Arc, Mutex};
 
+
 // Update the type to handle Arc<ProofManager>
 static PROOF_MANAGER: Lazy<Mutex<Arc<ProofManager>>> = Lazy::new(|| {
     Mutex::new(ProofManager::new().expect("Failed to initialize ProofManager"))
@@ -112,7 +113,9 @@ pub extern "system" fn Java_expo_modules_proofmanager_ProofManagerModule_createP
              0
          }
      }
- }#[no_mangle]
+ }
+ 
+ #[no_mangle]
  pub extern "system" fn Java_expo_modules_proofmanager_ProofManagerModule_generateAddressNative<'local>(
      mut env: JNIEnv<'local>,
      _class: JClass<'local>,

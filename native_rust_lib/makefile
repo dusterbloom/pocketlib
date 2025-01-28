@@ -69,38 +69,42 @@ check:
 
 
 # iOS target
-ios: ios-build ios-copy
+ios: ios-build ios-copy 
 
+
+# Build target - handles compilation of Rust code
 ios-build:
-	@echo "$(BOLD)Building for iOS...$(RESET)"
+	@echo "Building library and generating bindings..."
 	cargo build
 	cargo run --bin uniffi-bindgen generate --library ./target/debug/libproofmanager.dylib --language swift --out-dir ./bindings
-	@echo "Building for iOS targets..."
-	for target in aarch64-apple-darwin aarch64-apple-ios aarch64-apple-ios-sim; do \
-		rustup target add $$target; \
-		cargo build --release --target=$$target; \
-	done
+	rustup target add aarch64-apple-ios-sim
+	cargo build --release --target=aarch64-apple-ios-sim
 
 	@echo "Setting up XCFramework..."
 	mv ./bindings/proofmanagerFFI.modulemap ./bindings/module.modulemap
-	# Clean the output directory first
-	rm -rf "ios/ProofManager.xcframework"
-	rm -rf "../modules/proofmanager/ios/ProofManager.xcframework"
+	rm -rf "ios/ProofManager.xcframework"	
+	@echo "Creating XCFramework..."
 	xcodebuild -create-xcframework \
 		-library ./target/aarch64-apple-ios-sim/release/libproofmanager.a -headers ./bindings \
-		-library ./target/aarch64-apple-ios/release/libproofmanager.a -headers ./bindings \
 		-output "ios/ProofManager.xcframework"
 
+# Copy target - handles moving files to the correct locations
 ios-copy:
-	@echo "$(BOLD)Copying iOS artifacts...$(RESET)"
-	@mkdir -p $(IOS_OUTPUT_DIR)
-	# Copy the XCFramework
+	@echo "Copying framework to modules..."
 	rm -rf ../modules/proofmanager/ios/ProofManager.xcframework
-	@cp -r ./ios/ProofManager.xcframework ../modules/proofmanager/ios
-	# Copy the Swift bindings
-	@cp ./bindings/proofmanager.swift ../modules/proofmanager/ios/
-	@echo "$(GREEN)✓ iOS artifacts copied to $(IOS_OUTPUT_DIR)$(RESET)"
+	cp -r ios/ProofManager.xcframework ../modules/proofmanager/ios
+	@echo "Cleaning up and copying Swift files..."
+	rm -f ../modules/proofmanager/ios/ProofManager.xcframework/ios-arm64-simulator/Headers/proofmanager.swift
+	rm -f ../modules/proofmanager/ios/proofmanager.swift
+	cp ./bindings/proofmanager.swift ../modules/proofmanager/ios/
 
+# Clean target
+ios-clean:
+	@echo "Cleaning build artifacts..."
+	rm -rf ./target
+	rm -rf ./bindings
+	rm -rf ./ios/ProofManager.xcframework
+	rm -rf ../modules/proofmanager/ios/ProofManager.xcframework
 
 # Android target
 android: android-build android-copy
