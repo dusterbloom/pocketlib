@@ -89,5 +89,18 @@ This command will generate the target library for android and the kotlin binding
 
 It is wise to delete the `bindings` folder from `native_rust_lib` after any change to the lib.rs
 
+The `native_rust_lib` contains the actual implementation of the proof generation and verification logic in Rust. It likely uses cryptographic libraries like ark-crypto-primitives and penumbra-num to perform the necessary operations. It is compiled to a native library (e.g., .so file for Android, .xcframework for iOS) that can be used by the React Native app on both Android and iOS platforms.
+
+
 ## Modules folder
 
+Inside `modules` we can find `proofmanager` the folder created by `expo` to host the TS/JS interface. 
+
+`app/(tabs)/index.tsx`  is a React Native component that renders the home screen of the app. It imports and uses the ProofManager module, which is defined in @index.ts, to generate and verify proofs.
+
+`/modules/proofmanager/index.ts` is likely a TypeScript file that serves as a bridge between the React Native app and the native Rust library. It exposes the functionality of the Rust library to the JavaScript/TypeScript code running in the React Native app.
+
+
+The `HomeScreen` component in `index.tsx` defines state variables to store the proof, commitment, and other related data. In the useEffect hook, the generateProof function is called, which likely calls a function exposed by @index.ts to generate the proof using the native Rust library.
+The `native_rust_lib` contains the actual implementation of the proof generation and verification logic in Rust. It likely uses cryptographic libraries like ark-crypto-primitives and penumbra-num to perform the necessary operations.
+The generated proof and commitment are then passed back to the `HomeScreen` component, where they are displayed or used for further processing.
