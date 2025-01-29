@@ -177,28 +177,27 @@ pub extern "system" fn Java_expo_modules_proofmanager_ProofManagerModule_createP
     }
 }
 
-
-use decaf377_rdsa::{Signature, SpendAuth, VerificationKey};
-use once_cell::sync::Lazy;
-
-
 use std::str::FromStr;
 use rand::rngs::OsRng;
 use anyhow::Result;
-use ark_groth16::r1cs_to_qap::LibsnarkReduction;
-use ark_serialize::{CanonicalDeserialize, CanonicalSerialize};
-use decaf377::{Bls12_377, Fq, Fr};
-
-use ark_groth16::{prepare_verifying_key, Groth16, PreparedVerifyingKey, Proof, ProvingKey};
+use ark_groth16::{prepare_verifying_key, r1cs_to_qap::LibsnarkReduction, Groth16, PreparedVerifyingKey, Proof, ProvingKey};
 use base64::prelude::*;
+use ark_serialize::{CanonicalDeserialize, CanonicalSerialize};
 use ark_ff::ToConstraintField;
 use ark_relations::r1cs::{ConstraintSynthesizer, ConstraintSystemRef};
 use ark_r1cs_std::prelude::*;
 use ark_snark::SNARK;
+use once_cell::sync::Lazy;
+use decaf377::{
+    Bls12_377,
+    Fq,
 
+};
+use decaf377_fmd as fmd;
+use decaf377_ka as ka;
 use penumbra_num::Amount;
 
-use rand::{thread_rng, Rng as _, RngCore};
+use rand::{thread_rng, RngCore};
 
 // Re-export and use types from Penumbra
 use penumbra_keys::{
@@ -207,16 +206,16 @@ use penumbra_keys::{
 };
 use penumbra_proto::DomainType;
 use penumbra_shielded_pool::{
-   Rseed
+  Note, Rseed
 };
 use penumbra_tct::StateCommitment;
 use penumbra_asset::{Value, asset};
 use penumbra_tct::r1cs::StateCommitmentVar;
-use crate::r1cs::NoteVar;
+
 pub mod note;
 pub mod r1cs;
 
-use note::Note;
+use penumbra_shielded_pool::note::NoteVar;
 
 // Domain separator for note commitments
 static NOTECOMMIT_DOMAIN_SEP: Lazy<Fq> = Lazy::new(|| {
@@ -226,20 +225,6 @@ static NOTECOMMIT_DOMAIN_SEP: Lazy<Fq> = Lazy::new(|| {
 const GROTH16_PROOF_LENGTH_BYTES: usize = 192;
 
 
-
-// Core helper functions
-fn sk_from_seed(seed_phrase_randomness: [u8; 32]) -> SpendKey {
-    let seed_phrase = SeedPhrase::from_randomness(&seed_phrase_randomness);
-    SpendKey::from_seed_phrase_bip44(seed_phrase, &Bip44Path::new(0))
-}
-
-fn addr_from_sk(sk: &SpendKey, index: u32) -> Address {
-    let fvk = sk.full_viewing_key();
-    let ivk = fvk.incoming();
-    ivk.payment_address(index.into()).0
-}
-
-// Helper struct for note creation results
 
 // Your existing error type for FFI
 #[derive(Debug, thiserror::Error, uniffi::Error)]
@@ -254,15 +239,6 @@ pub enum ProofError {
     InvalidNote { error_message: String },
     #[error("{error_message}")]
     SerializationError { error_message: String },
-}
-
-
-// Make NoteCreationResult FFI-compatible
-#[derive(uniffi::Record, Clone)]
-pub struct NoteCreationResult {
-    pub note_commitment: Vec<u8>,
-    pub auth_sig: Vec<u8>,
-    pub rk: Vec<u8>,
 }
 
 // Simplified FFI types
@@ -293,17 +269,14 @@ pub struct ProofWithCommitment {
     pub commitment: Vec<u8>,
 }
 
-// New type for intent actions
-#[derive(uniffi::Record)]
-pub struct IntentAction {
+#[derive(uniffi::Record, Clone)]
+pub struct ObligationData {
     pub note_commitment: Vec<u8>,
     pub auth_sig: Vec<u8>,
     pub rk: Vec<u8>,
     pub zkp: Vec<u8>,
-    pub note_ciphertext: Vec<u8>,    // Primary ciphertext
-    pub aux_ciphertext: Vec<u8>,     // Secondary ciphertext
+    pub ciphertexts: [Vec<u8>; 2],
 }
-
 
 
 // Circuit implementation
@@ -336,7 +309,6 @@ impl ConstraintSynthesizer<Fq> for OutputCircuit {
     }
 }
 
-
 #[derive(Clone, Debug)]
 pub struct OutputProofPublic {
     pub note_commitment: StateCommitment,
@@ -346,8 +318,6 @@ pub struct OutputProofPublic {
 pub struct OutputProofPrivate {
     pub note: Note,
 }
-
-
 
 #[derive(Clone, Debug)]
 pub struct OutputProof([u8; GROTH16_PROOF_LENGTH_BYTES]);
@@ -394,8 +364,6 @@ impl OutputProof {
     }
 }
 
-
-
 // Main proof manager object with FFI interface
 #[derive(uniffi::Object)]
 pub struct ProofManager {
@@ -403,27 +371,48 @@ pub struct ProofManager {
     verifying_key: PreparedVerifyingKey<Bls12_377>,
 }
 
-    
-
 #[uniffi::export]
-impl ProofManager {    
-
+impl ProofManager {
     #[uniffi::constructor]
-
+    
     fn new() -> Result<Arc<Self>, ProofError> {
-        // Create initial circuit for key generation
-        let mut rng = rand::thread_rng();
-        let seed_bytes: [u8; 32] = rng.gen();
-        let addr = Self::generate_dummy_address(&seed_bytes)?;
+        // Create a basic address for initialization
+        let diversifier_bytes = [0u8; 16];
+        let tx_key_bytes = [0u8; 32];
+        let clue_key_bytes = [0u8; 32];
         
-        let note = ProofManager::create_test_note(&self, debtor_seed, creditor_seed, amount, asset_id)?;
+        let diversifier = Diversifier(diversifier_bytes);
+        let pk_d = ka::Public(tx_key_bytes);
+        let clue_key = fmd::ClueKey(clue_key_bytes);
         
+        let address = Address::from_components(diversifier, pk_d, clue_key)
+        .ok_or_else(|| ProofError::ProofGenerationFailed { 
+            error_message: "Failed to create address".to_string() 
+        })?;
+
+        // Create a simple note for initialization
+        let value = Value {
+            amount: Amount::from(0u64),
+            asset_id: asset::Id(Fq::ZERO),
+        };
+        let rseed = Rseed([0u8; 32]);
+
+        let note = Note::from_parts(
+            address.clone(),
+            value,
+            rseed,
+        ).map_err(|e| ProofError::ProofGenerationFailed {
+            error_message: format!("Failed to create initial note: {}", e)
+        })?;
+
+        // Create circuit with these values
         let public = OutputProofPublic {
             note_commitment: note.commit(),
         };
         let private = OutputProofPrivate { note };
         let circuit = OutputCircuit::new(public, private);
         
+        // Generate the keys
         let params = generate_setup_params(circuit)?;
         
         Ok(Arc::new(Self {
@@ -432,128 +421,17 @@ impl ProofManager {
         }))
     }
 
-    // Helper to create dummy address for initialization
-    fn generate_dummy_address(seed_bytes: &[u8; 32]) -> Result<Address, ProofError> {
-        let seed_phrase = SeedPhrase::from_randomness(seed_bytes);
-        let sk = SpendKey::from_seed_phrase_bip44(seed_phrase, &Bip44Path::new(0));
-        let fvk = sk.full_viewing_key();
-        let ivk = fvk.incoming();
-        let (addr, _) = ivk.payment_address(0u32.into());
-        Ok(addr)
-    }
-
-    // Core note creation function 
-    fn create_test_note(
-        &self,
-        debtor_seed: &[u8; 32],
-        creditor_seed: &[u8; 32],
-        amount: u64,
-        asset_id: u64,
-    ) -> Result<NoteCreationResult, ProofError> {
-        // Create keys and addresses
-        let sk_debtor = {
-            let seed = SeedPhrase::from_randomness(debtor_seed);
-            SpendKey::from_seed_phrase_bip44(seed, &Bip44Path::new(0))
-        };
-
-        let sk_creditor = {
-            let seed = SeedPhrase::from_randomness(creditor_seed);
-            SpendKey::from_seed_phrase_bip44(seed, &Bip44Path::new(0))
-        };
-
-        let debtor_addr = {
-            let fvk = sk_debtor.full_viewing_key();
-            let ivk = fvk.incoming();
-            ivk.payment_address(1u32.into()).0
-        };
-
-        let creditor_addr = {
-            let fvk = sk_creditor.full_viewing_key();
-            let ivk = fvk.incoming();
-            ivk.payment_address(1u32.into()).0
-        };
-
-        // Create randomized spend auth key
-        let spend_auth_randomizer = Fr::from(1u64);
-        let rsk_debtor = sk_debtor.spend_auth_key().randomize(&spend_auth_randomizer);
-        let rk_debtor: VerificationKey<SpendAuth> = rsk_debtor.into();
-
-        // Create and commit note
-        let value = Value {
-            amount: Amount::from(amount),
-            asset_id: asset::Id(Fq::from(asset_id)),
-        };
-
-        let mut rng = thread_rng();
-        let mut rseed_bytes = [0u8; 32];
-        rng.fill_bytes(&mut rseed_bytes);
-
-        let note = Note::from_parts(
-            debtor_addr,
-            creditor_addr,
-            value,
-            Rseed(rseed_bytes),
-        ).map_err(|e| ProofError::InvalidNote {
-            error_message: e.to_string()
-        })?;
-
-        // Generate commitment
-        let commitment = note.commit();
-        
-        // Create auth signature
-        let auth_sig = {
-            let sig = rsk_debtor.sign(rand::thread_rng(), &commitment.0.to_bytes());
-            Vec::<u8>::from(sig)
-        };
-
-        Ok(NoteCreationResult {
-            note_commitment: commitment.0.to_bytes().to_vec(),
-            auth_sig,
-            rk: rk_debtor.to_bytes().to_vec(),
-        })
-    }
-
-    // Intent action creation using note result
-    fn create_intent_action(&self, note_result: NoteCreationResult) -> Result<IntentAction, ProofError> {
-        Ok(IntentAction {
-            note_commitment: note_result.note_commitment,
-            auth_sig: note_result.auth_sig, 
-            rk: note_result.rk,
-            zkp: vec![],
-            note_ciphertext: vec![], // Would need note for this
-            aux_ciphertext: vec![],
-        })
-    }
-
-    // Existing verify functionality
-    fn verify_intent_action(&self, action: IntentAction) -> Result<bool, ProofError> {
-        let rk = VerificationKey::<SpendAuth>::try_from(action.rk.as_slice())
-            .map_err(|e| ProofError::VerificationFailed {
-                error_message: e.to_string()
-            })?;
-
-        let sig = Signature::try_from(action.auth_sig.as_slice())
-            .map_err(|e| ProofError::VerificationFailed {
-                error_message: e.to_string()
-            })?;
-
-        Ok(rk.verify(&action.note_commitment, &sig).is_ok())
-    }
-
     fn generate_commitment(&self, input: &ProofInput) -> Vec<u8> {
         // Generate the address
         let address_info = self.generate_address(input.seed_phrase.clone(), input.address_index)
             .expect("Failed to generate address");
             
         // Create the note
-        let note = Note::from_parts(
-            address.clone(),         // debtor
-            address.clone(),         // creditor (self-transfer in this case)
-            value,
-            Rseed(rseed_bytes)
-        ).map_err(|e| ProofError::InvalidNote { 
-            error_message: e.to_string() 
-        })?;
+        let note = self.create_note(
+            address_info,
+            input.amount,
+            input.asset_id
+        ).expect("Failed to create note");
 
         // Get the commitment
         note.commit().0.to_bytes().to_vec()
@@ -589,7 +467,7 @@ impl ProofManager {
         let blinding_s = Fq::rand(&mut rng);
 
         let address = self.generate_address(input.seed_phrase, input.address_index)?;
-        let note = Self::create_test_note(address, input.amount, input.asset_id)?;
+        let note = self.create_note(address, input.amount, input.asset_id)?;
         
         let public = OutputProofPublic {
             note_commitment: note.commit(),
@@ -614,7 +492,7 @@ impl ProofManager {
     fn create_proof_with_commitment(&self, input: ProofInput) -> Result<ProofWithCommitment, ProofError> {
         // Generate address and note
         let address = self.generate_address(input.seed_phrase, input.address_index)?;
-        let note = create_test_note(address, input.amount, input.asset_id)?;
+        let note = self.create_note(address, input.amount, input.asset_id)?;
         
         // Generate commitment first
         let commitment = note.commit();
@@ -697,42 +575,94 @@ impl ProofManager {
 
 
 
-    // // This becomes much simpler now
-    // fn create_intent_action(&self, result: NoteCreationResult) -> Result<IntentAction, ProofError> {
-    //     let note_ciphertext = serde_json::to_vec(&result.note)
-    //         .map_err(|e| ProofError::SerializationError { 
-    //             error_message: e.to_string() 
-    //         })?;
+    fn create_obligation(
+        &self,
+        seed_phrase: String,
+        debtor_index: u32,
+        creditor_index: u32,
+        amount: u64,
+        asset_id: u64,
+    ) -> Result<ObligationData, ProofError> {
+        // Parse seed phrase and generate spend key
+        let seed_phrase = SeedPhrase::from_str(&seed_phrase)
+            .map_err(|_| ProofError::InvalidSeed)?;
+        let sk = SpendKey::from_seed_phrase_bip44(seed_phrase, &Bip44Path::new(0));
+        
+        // Get debtor and creditor addresses
+        let fvk = sk.full_viewing_key();
+        let ivk = fvk.incoming();
+        let (debtor_addr, _) = ivk.payment_address(debtor_index.into());
+        let (creditor_addr, _) = ivk.payment_address(creditor_index.into());
 
-    //     Ok(IntentAction {
-    //         note_commitment: result.commitment,
-    //         auth_sig: result.auth_sig,
-    //         rk: result.rk,
-    //         zkp: vec![],
-    //         note_ciphertext,
-    //         aux_ciphertext: vec![],
-    //     })
-    // }
+        // Create value and note
+        let value = Value {
+            amount: Amount::from(amount),
+            asset_id: asset::Id(Fq::from(asset_id)),
+        };
+        
+        let rseed = Rseed(rand::random());
+        let note = Note::from_parts(
+            debtor_addr.clone(),
+            creditor_addr.clone(),
+            value,
+            rseed,
+        ).map_err(|e| ProofError::InvalidNote { 
+            error_message: e.to_string() 
+        })?;
 
-    // fn verify_intent_action(
-    //     &self,
-    //     action: IntentAction,
-    // ) -> Result<bool, ProofError> {
-    //     // Reconstruct verification key
-    //     let rk = VerificationKey::<SpendAuth>::try_from(action.rk.as_slice())
-    //         .map_err(|e| ProofError::VerificationFailed { 
-    //             error_message: e.to_string() 
-    //         })?;
+        // Get note commitment
+        let note_commitment = note.commit();
+        let note_commitment_bytes = note_commitment.0.to_bytes();
 
-    //     // Reconstruct signature
-    //     let sig = Signature::try_from(action.auth_sig.as_slice())
-    //         .map_err(|e| ProofError::VerificationFailed { 
-    //             error_message: e.to_string() 
-    //         })?;
+        // Generate randomized spend auth key and signature
+        let spend_auth_randomizer = Fr::from(1u64);
+        let rsk = sk.spend_auth_key().randomize(&spend_auth_randomizer);
+        let rk: VerificationKey<SpendAuth> = rsk.into();
+        
+        // Sign the note commitment
+        let auth_sig = rsk.sign(rand::thread_rng(), &note_commitment_bytes);
 
-    //     // Verify signature
-    //     Ok(rk.verify(&action.note_commitment, &sig))
-    // }
+        // Serialize the note
+        let note_ciphertext = serde_json::to_vec(&note)
+            .map_err(|e| ProofError::SerializationError { 
+                error_message: e.to_string() 
+            })?;
+
+        Ok(ObligationData {
+            note_commitment: note_commitment_bytes.to_vec(),
+            auth_sig: Vec::<u8>::from(auth_sig),
+            rk: rk.to_bytes().to_vec(),
+            zkp: vec![], // Placeholder for ZKP implementation
+            ciphertexts: [note_ciphertext, vec![]], // Second ciphertext is placeholder
+        })
+    }
+
+    fn verify_obligation(
+        &self,
+        obligation: ObligationData,
+    ) -> Result<bool, ProofError> {
+        // Reconstruct verification key from bytes
+        let rk = VerificationKey::<SpendAuth>::try_from(obligation.rk.as_slice())
+            .map_err(|e| ProofError::VerificationFailed { 
+                error_message: e.to_string() 
+            })?;
+
+        // Reconstruct signature from bytes
+        let sig = Signature::try_from(obligation.auth_sig.as_slice())
+            .map_err(|e| ProofError::VerificationFailed { 
+                error_message: e.to_string() 
+            })?;
+
+        // Verify signature
+        match rk.verify(&obligation.note_commitment, &sig) {
+            true => Ok(true),
+            false => Err(ProofError::VerificationFailed { 
+                error_message: "Signature verification failed".to_string() 
+            }),
+        }
+    }
+
+
 
 
 
@@ -747,46 +677,50 @@ impl ProofManager {
     }
 }
 
-// // Private helper functions
+// Private helper functions
 impl ProofManager {
-    // fn create_note(
-    //     &self,
-    //     debtor_addr: Address,
-    //     creditor_addr: Address,
-    //     amount: u64,
-    //     asset_id: u64,
-    // ) -> Result<crate::note::Note, ProofError> {
-    //     let value = Value {
-    //         amount: Amount::from(amount),
-    //         asset_id: asset::Id(Fq::from(asset_id)),
-    //     };
+    fn create_note(
+        &self,
+        address: AddressInfo,
+        amount: u64,
+        asset_id: u64,
+    ) -> Result<Note, ProofError> {
+        let diversifier = Diversifier(address.diversifier.try_into().map_err(|_| ProofError::InvalidNote {
+            error_message: "Invalid diversifier length".to_string(),
+        })?);
+        
+        let pk_d = ka::Public(address.transmission_key.try_into().map_err(|_| ProofError::InvalidNote {
+            error_message: "Invalid transmission key length".to_string(),
+        })?);
+        
+        let clue_key = fmd::ClueKey(address.clue_key.try_into().map_err(|_| ProofError::InvalidNote {
+            error_message: "Invalid clue key length".to_string(),
+        })?);
 
-    //     let mut rng = rand::thread_rng();
-    //     let mut rseed_bytes = [0u8; 32];
-    //     rng.fill_bytes(&mut rseed_bytes);
+        let address = Address::from_components(diversifier, pk_d, clue_key)
+        .ok_or_else(|| ProofError::InvalidNote {
+            error_message: "Failed to create address from components".to_string(),
+        })?;
 
-    //     crate::note::Note::from_parts(
-    //         debtor_addr,
-    //         creditor_addr,
-    //         value,
-    //         Rseed(rseed_bytes),
-    //     ).map_err(|e| ProofError::InvalidNote { 
-    //         error_message: e.to_string() 
-    //     })
-    // }
+        let value = Value {
+            amount: Amount::from(amount),
+            asset_id: asset::Id(Fq::from(asset_id)),
+        };
 
-//     // Helper function to create a spend key from seed phrase
-//     fn create_spend_key(
-//         &self,
-//         seed_phrase: &str,
-//     ) -> Result<SpendKey, ProofError> {
-//         let seed_phrase = SeedPhrase::from_str(seed_phrase)
-//             .map_err(|_| ProofError::InvalidSeed)?;
-//         Ok(SpendKey::from_seed_phrase_bip44(seed_phrase, &Bip44Path::new(0)))
-//     }
+        let mut rng = thread_rng();
+        let mut rseed_bytes = [0u8; 32];
+        rng.fill_bytes(&mut rseed_bytes);
+        let rseed = Rseed(rseed_bytes);
+
+        Note::from_parts(
+            address.clone(),
+            value,
+            rseed,
+        ).map_err(|e| ProofError::InvalidNote {
+            error_message: e.to_string(),
+        })
+    }
 }
-
-
 
 fn generate_setup_params(
     circuit: OutputCircuit,
@@ -823,97 +757,3 @@ impl TryFrom<penumbra_proto::penumbra::core::component::shielded_pool::v1::ZkOut
         Ok(OutputProof(proto.inner[..].try_into()?))
     }
 }
-
-
-// #[cfg(test)]
-// mod tests {
-//     use super::*;
-    
-
-//     // Add test helpers that match test.rs
-//     #[test]
-//     fn sk_from_seed(seed_phrase_randomness: [u8; 32]) -> SpendKey {
-//         let seed_phrase = SeedPhrase::from_randomness(&seed_phrase_randomness);
-//         SpendKey::from_seed_phrase_bip44(seed_phrase, &Bip44Path::new(0))
-//     }
-
-//     #[test]
-//     fn addr_from_sk(sk: &SpendKey, index: u32) -> Address {
-//         let fvk = sk.full_viewing_key();
-//         let ivk = fvk.incoming();
-//         ivk.payment_address(index.into()).0
-//     }
-
-//     #[test]
-//     fn test_create_obligations() -> Result<(), ProofError> {
-//         let mut rng = rand::thread_rng();
-//         let seed_phrase_randomness_1: [u8; 32] = rng.gen();
-//         let seed_phrase_randomness_2: [u8; 32] = rng.gen();
-        
-//         let sk_debtor = Self::sk_from_seed(seed_phrase_randomness_1);
-//         let debtor_addr = Self::addr_from_sk(&sk_debtor, 1);
-        
-//         let sk_creditor = Self::sk_from_seed(seed_phrase_randomness_2);
-//         let creditor_addr = Self::addr_from_sk(&sk_creditor, 1);
-
-//         // Test note creation
-//         let note = self.create_note(
-//             debtor_addr,
-//             creditor_addr,
-//             30,
-//             1
-//         )?;
-
-//         assert_eq!(note.amount(), Amount::from(30u64));
-//         Ok(())
-//     }
-
-
-//     #[test]
-//     fn test_proof_manager_full() -> Result<(), ProofError> {
-//         let manager = ProofManager::new()?;
-
-//         // Test existing ZKP functionality
-//         let input = ProofInput {
-//             seed_phrase: "test test test test test test test test test test test junk".to_string(),
-//             amount: 1000,
-//             asset_id: 1,
-//             address_index: 0,
-//         };
-
-//         // Test proof generation and verification (existing functionality)
-//         let proof_result = manager.create_proof(input.clone())?;
-//         assert!(manager.verify_proof(proof_result, vec![])?);
-
-//         // Test new intent action functionality
-//         let intent = manager.create_intent_action(
-//             "test test test test test test test test test test test junk".to_string(),
-//             "word word word word word word word word word word word word".to_string(),
-//             1000,
-//             1,
-//             0,
-//         )?;
-        
-//         assert!(manager.verify_intent_action(intent)?);
-
-//         Ok(())
-//     }
-    
-//     #[test]
-//     fn test_exact_obligation_flow() -> Result<(), ProofError> {
-//         let manager = ProofManager::new()?;
-
-//         // Test with exact values from test.rs
-//         let intent = manager.create_intent_action(
-//             "test test test test test test test test test test test junk".to_string(),
-//             "word word word word word word word word word word word word".to_string(),
-//             30, // Exact amount from test.rs
-//             1,  // TEST_ASSET_ID
-//             1,  // Same index as test.rs
-//         )?;
-
-//         assert!(manager.verify_intent_action(intent)?);
-//         Ok(())
-//     }
-// }
-

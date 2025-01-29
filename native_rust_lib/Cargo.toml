@@ -27,7 +27,7 @@ ark-snark                        = { version = "0.4.0", default-features = false
 base64                           = { version = "0.21.7", default-features = false }
 blake2b_simd                     = { version = "1.0.2", default-features = false }
 decaf377                         = { version = "0.10.1", default-features = true }
-decaf377-rdsa                    = { version = "0.10.1", default-features = true }
+decaf377-rdsa                    = { version = "0.11.0", default-features = true }
 decaf377-fmd                     = { version = "0.80.9", default-features = false }
 decaf377-ka                      = { version = "0.80.9", default-features = false }
 hex                              = { version = "0.4.3", default-features = false }

@@ -31,13 +31,13 @@ export interface ProofManagerInterface {
   verifyProof(proof: number[], commitment: number[]): Promise<boolean>;
   generateAddress(seedPhrase: string, index: number): Promise<AddressInfo>;
 
-   createIntentAction(
+  createIntentAction(
     seedPhrase: string,
-    creditorSeedPhrase: string,
     amount: number,
     assetId: number,
-    addressIndex: number
-  ): Promise<IntentAction>;
+    addressIndex: number,
+    creditorAddress: AddressInfo
+): Promise<IntentAction>;
 
     verifyIntentAction(
         action: IntentAction

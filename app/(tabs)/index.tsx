@@ -5,13 +5,13 @@ import { ThemedText } from '@/components/ThemedText';
 import { ThemedView } from '@/components/ThemedView';
 
 import * as ProofManager from '@/modules/proofmanager'
-import { ProofInput } from '../../modules/proofmanager/src/ProofManager.types';
+import { ProofInput, IntentAction } from '@/modules/proofmanager/src/ProofManager.types';
 import { useEffect, useState } from 'react';
 import { Text } from "react-native";
 import { addressToHex, bytesToHex, convertByteArraysToHex } from '@/utils/hex';
 
 export default function HomeScreen() {
-  // State for proof, commitment, etc. in hex
+  // Existing state
   const [addressHex, setAddressHex] = useState<{
     clueKey: string;
     diversifier: string;
@@ -22,32 +22,42 @@ export default function HomeScreen() {
   const [commitmentHex, setCommitmentHex] = useState<string | null>(null);
   const [isValid, setIsValid] = useState<boolean | null>(null);
 
-  // Error + timings as before
+  // New state for intent actions
+  const [intentAction, setIntentAction] = useState<IntentAction | null>(null);
+  const [intentIsValid, setIntentIsValid] = useState<boolean | null>(null);
+
   const [error, setError] = useState<string | null>(null);  
   const [timings, setTimings] = useState<{
     addressGenTime: number | null;
     proofGenTime: number | null;
     verifyTime: number | null;
+    intentGenTime: number | null;
+    intentVerifyTime: number | null;
   }>({
     addressGenTime: null,
     proofGenTime: null,
     verifyTime: null,
+    intentGenTime: null,
+    intentVerifyTime: null,
   });
 
   useEffect(() => {
     async function generateProof() {
       try {
+        // Existing seed phrases
+        const debtorPhrase = 'garage advice weekend this dose mango sign horse tool torch mosquito repeat sentence valid scheme pull punch need prosper build actor say cancel allow';
+        const creditorPhrase = 'word word word word word word word word word word word word';
+
         const input: ProofInput = {
-          seedPhrase:
-            'garage advice weekend this dose mango sign horse tool torch mosquito repeat sentence valid scheme pull punch need prosper build actor say cancel allow',
+          seedPhrase: debtorPhrase,
           amount: 1000,
           assetId: 1,
           addressIndex: 0,
         };
 
+        // --- Existing ZKP Generation Flow ---
         console.log('Generating proof with input:', input);
 
-        // --- Step 1: generateAddress ---
         const startAddr = Date.now();
         const address = await ProofManager.generateAddress(
           input.seedPhrase,
@@ -56,53 +66,62 @@ export default function HomeScreen() {
         const endAddr = Date.now();
         const addressGenTime = endAddr - startAddr;
 
-        // Convert the address fields to hex
         const hexAddr = convertByteArraysToHex(address);
-        setAddressHex(hexAddr); // <--- store in state
-        console.log('Hex address:', hexAddr);
-        console.log(`Address generation took ${addressGenTime}ms`);
+        setAddressHex(hexAddr);
         setTimings((prev) => ({ ...prev, addressGenTime }));
 
-        // --- Step 2: createProof ---
         const startProof = Date.now();
         const result = await ProofManager.createProof(input);
         const endProof = Date.now();
         const proofGenTime = endProof - startProof;
 
-        console.log('Generated proof result:', {
-          proofLength: result.proof.length,
-          commitmentLength: result.commitment.length,
-        });
-        console.log(`Proof generation took ${proofGenTime}ms`);
-        setTimings((prev) => ({ ...prev, proofGenTime }));
-
-        // Convert the proof and commitment arrays to hex
         const proofHexString = convertByteArraysToHex(result.proof);
         const commitmentHexString = convertByteArraysToHex(result.commitment);
         setProofHex(proofHexString);
         setCommitmentHex(commitmentHexString);
+        setTimings((prev) => ({ ...prev, proofGenTime }));
 
-        console.log('Generated proof hex result:', {
-          proofHexString,
-          commitmentHexString,
-        });
-
-        // --- Step 3: verifyProof ---
         const startVerify = Date.now();
         const valid = await ProofManager.verifyProof(
           result.proof,
           result.commitment
         );
         const endVerify = Date.now();
-        const verifyTime = endVerify - startVerify;
+        setIsValid(valid);
+        setTimings((prev) => ({ ...prev, verifyTime: endVerify - startVerify }));
 
-        setIsValid(valid); // <--- store verification result
-        console.log('Proof verification result:', valid);
-        console.log(`Proof verification took ${verifyTime}ms`);
-        setTimings((prev) => ({ ...prev, verifyTime }));
+        // --- Intent Action Flow ---
+console.log('Generating intent action...');
+
+// First get creditor's address (in a real app this would be passed in)
+const creditorAddress = await ProofManager.generateAddress(
+  'test test test test test test test test test test test junk',
+  1  // Different index for creditor
+);
+
+        const startIntent = Date.now();
+        const intentResult = await ProofManager.createIntentAction(
+          debtorPhrase,
+          30, // Amount
+          1,  // TEST_ASSET_ID
+          1,  // address index
+          creditorAddress
+        );
+        const endIntent = Date.now();
+        setIntentAction(intentResult);
+        setTimings((prev) => ({ ...prev, intentGenTime: endIntent - startIntent }));
+
+        const startIntentVerify = Date.now();
+        const intentValid = await ProofManager.verifyIntentAction(intentResult);
+        const endIntentVerify = Date.now();
+        setIntentIsValid(intentValid);
+        setTimings((prev) => ({ 
+          ...prev, 
+          intentVerifyTime: endIntentVerify - startIntentVerify 
+        }));
 
       } catch (err) {
-        console.error('Error in proof generation:', err);
+        console.error('Error:', err);
         setError(err instanceof Error ? err.message : 'Unknown error');
       }
     }
@@ -124,14 +143,13 @@ export default function HomeScreen() {
         <HelloWave />
       </ThemedView>
 
+      {/* ZKP Section */}
       <ThemedView style={styles.stepContainer}>
-        <ThemedText type="subtitle">Step 1: Try it</ThemedText>
+        <ThemedText type="subtitle">ZKP Generation Results</ThemedText>
 
-        {/* Show the proof */}
         <Text>Proof (hex): {proofHex ?? 'Generating...'}</Text>
         <Text>Commitment (hex): {commitmentHex ?? 'Generating...'}</Text>
 
-        {/* Show address hex */}
         {addressHex && (
           <>
             <Text>Address ClueKey (hex): {addressHex.clueKey}</Text>
@@ -140,14 +158,37 @@ export default function HomeScreen() {
           </>
         )}
 
-        {/* Show verification result */}
         {isValid !== null && (
           <Text>Proof verification: {isValid ? 'Valid ✅' : 'Invalid ❌'}</Text>
         )}
+      </ThemedView>
 
-        {error && <Text style={{ color: 'red' }}>Error: {error}</Text>}
+      {/* Intent Action Section */}
+      <ThemedView style={styles.stepContainer}>
+        <ThemedText type="subtitle">Intent Action Results</ThemedText>
 
-        {/* Show timing results */}
+        {intentAction && (
+          <>
+            <Text>Note Commitment (hex): {convertByteArraysToHex(intentAction.noteCommitment)}</Text>
+            <Text>Auth Signature (hex): {convertByteArraysToHex(intentAction.authSig)}</Text>
+            <Text>Verification Key (hex): {convertByteArraysToHex(intentAction.rk)}</Text>
+          </>
+        )}
+
+        {intentIsValid !== null && (
+          <Text>Intent verification: {intentIsValid ? 'Valid ✅' : 'Invalid ❌'}</Text>
+        )}
+      </ThemedView>
+
+      {/* Error Display */}
+      {error && (
+        <ThemedView style={styles.stepContainer}>
+          <Text style={{ color: 'red' }}>Error: {error}</Text>
+        </ThemedView>
+      )}
+
+      {/* Timing Results */}
+      <ThemedView style={styles.stepContainer}>
         <ThemedText type="subtitle">Timing Results</ThemedText>
         {timings.addressGenTime != null && (
           <Text>Address Generation: {timings.addressGenTime} ms</Text>
@@ -158,9 +199,17 @@ export default function HomeScreen() {
         {timings.verifyTime != null && (
           <Text>Proof Verification: {timings.verifyTime} ms</Text>
         )}
+        {timings.intentGenTime != null && (
+          <Text>Intent Generation: {timings.intentGenTime} ms</Text>
+        )}
+        {timings.intentVerifyTime != null && (
+          <Text>Intent Verification: {timings.intentVerifyTime} ms</Text>
+        )}
+      </ThemedView>
 
+      <ThemedView style={styles.stepContainer}>
+        <ThemedText type="subtitle">Developer Tools</ThemedText>
         <ThemedText>
-          Edit <ThemedText type="defaultSemiBold">app/(tabs)/index.tsx</ThemedText> to see changes.
           Press{' '}
           <ThemedText type="defaultSemiBold">
             {Platform.select({
@@ -170,22 +219,6 @@ export default function HomeScreen() {
             })}
           </ThemedText>{' '}
           to open developer tools.
-        </ThemedText>
-      </ThemedView>
-
-      <ThemedView style={styles.stepContainer}>
-        <ThemedText type="subtitle">Step 2: Explore</ThemedText>
-        <ThemedText>
-          Tap the Explore tab to learn more about what's included in this starter app.
-        </ThemedText>
-      </ThemedView>
-
-      <ThemedView style={styles.stepContainer}>
-        <ThemedText type="subtitle">Step 3: Get a fresh start</ThemedText>
-        <ThemedText>
-          When you're ready, run{' '}
-          <ThemedText type="defaultSemiBold">npm run reset-project</ThemedText> to get a fresh{' '}
-          <ThemedText type="defaultSemiBold">app</ThemedText> directory.
         </ThemedText>
       </ThemedView>
     </ParallaxScrollView>
