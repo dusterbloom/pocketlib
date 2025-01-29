@@ -3,9 +3,11 @@ import { requireNativeModule } from 'expo-modules-core';
 const ProofManagerModule = requireNativeModule('ProofManager');
 
 export const { 
+  generateKeys,
   generateAddress,
-  createProof,
-  verifyProof
+  createNote,
+  signNote,
+  verifySignature
 } = ProofManagerModule;
 
 export default ProofManagerModule;

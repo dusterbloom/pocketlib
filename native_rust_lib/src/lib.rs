@@ -3,140 +3,40 @@
 use jni::JNIEnv;
 use jni::objects::{JClass, JString, JObject, JValue, JByteArray};
 use jni::sys::{jlong, jint, jboolean, jobject};
+use once_cell::sync::Lazy;
+use penumbra_keys::keys::{Diversifier, SpendKeyBytes};
 use std::sync::{Arc, Mutex};
 
 
-// Update the type to handle Arc<ProofManager>
+// TODO add 
+// pub extern "system" fn Java_expo_modules_proofmanager_ProofManagerModule_generateKeysNative
+// pub extern "system" fn Java_expo_modules_proofmanager_ProofManagerModule_generateAddressNative
+// pub extern "system" fn Java_expo_modules_proofmanager_ProofManagerModule_createNoteNative
+// pub extern "system" fn Java_expo_modules_proofmanager_ProofManagerModule_signNoteNative
+// pub extern "system" fn Java_expo_modules_proofmanager_ProofManagerModule_verifySignatureNative
+
+// Global ProofManager instance
 static PROOF_MANAGER: Lazy<Mutex<Arc<ProofManager>>> = Lazy::new(|| {
     Mutex::new(ProofManager::new().expect("Failed to initialize ProofManager"))
 });
 
-
-uniffi::setup_scaffolding!();
-
 #[no_mangle]
-pub extern "system" fn Java_expo_modules_proofmanager_ProofManagerModule_createProofNative<'local>(
+pub extern "system" fn Java_expo_modules_proofmanager_ProofManagerModule_generateKeysNative<'local>(
     mut env: JNIEnv<'local>,
     _class: JClass<'local>,
     seed_phrase: JString<'local>,
-    amount: jlong,
-    asset_id: jlong,
-    address_index: jint,
 ) -> jobject {
     let seed_phrase: String = env
         .get_string(&seed_phrase)
         .expect("Couldn't get java string!")
         .into();
 
-    let input = ProofInput {
-        seed_phrase,
-        amount: amount as u64,
-        asset_id: asset_id as u64,
-        address_index: address_index as u32,
-    };
-
-    // Use global ProofManager with Arc
-    match PROOF_MANAGER.lock().unwrap().create_proof_with_commitment(input) {
-        Ok(proof_with_commitment) => {
-             let hash_map_class = env.find_class("java/util/HashMap")
-                 .expect("Failed to find HashMap class");
-             let hash_map = env.new_object(hash_map_class, "()V", &[])
-                 .expect("Failed to create HashMap");
-
-             // Create keys first
-             let proof_key = env.new_string("proof")
-                 .expect("Failed to create proof key");
-             let commitment_key = env.new_string("commitment")
-                 .expect("Failed to create commitment key");
-
-             // Create byte arrays
-             let proof_array = env.byte_array_from_slice(&proof_with_commitment.proof.data)
-                 .expect("Failed to create proof value");
-             let commitment_array = env.byte_array_from_slice(&proof_with_commitment.commitment)
-                 .expect("Failed to create commitment value");
-
-             // Add proof and commitment to HashMap
-             env.call_method(
-                 &hash_map,
-                 "put",
-                 "(Ljava/lang/Object;Ljava/lang/Object;)Ljava/lang/Object;",
-                 &[JValue::Object(proof_key.as_ref()), JValue::Object(&proof_array)]
-             ).expect("Failed to put proof");
-
-             env.call_method(
-                 &hash_map,
-                 "put",
-                 "(Ljava/lang/Object;Ljava/lang/Object;)Ljava/lang/Object;",
-                 &[JValue::Object(commitment_key.as_ref()), JValue::Object(&commitment_array)]
-             ).expect("Failed to put commitment");
-
-             hash_map.into_raw()
-         },
-         Err(e) => {
-             let hash_map_class = env.find_class("java/util/HashMap")
-                 .expect("Failed to find HashMap class");
-             env.throw_new("java/lang/Exception", e.to_string())
-                 .expect("Failed to throw exception");
-             env.new_object(hash_map_class, "()V", &[])
-                 .expect("Failed to create empty HashMap")
-                 .into_raw()
-         }
-     }
- 
- }
-
- #[no_mangle]
- pub extern "system" fn Java_expo_modules_proofmanager_ProofManagerModule_verifyProofNative<'local>(
-     mut env: JNIEnv<'local>,
-     _class: JClass<'local>,
-     proof: JByteArray<'local>,
-     commitment: JByteArray<'local>,
- ) -> jboolean {
-     let convert_array = |array: JByteArray<'local>| -> Vec<u8> {
-         env.convert_byte_array(&array)
-             .map(|bytes| bytes.iter().map(|&b| b as u8).collect())
-             .unwrap_or_default()
-     };
- 
-     let proof_data = convert_array(proof);
-     let commitment_data = convert_array(commitment);
- 
-     // Use global ProofManager
-     match PROOF_MANAGER.lock().unwrap().verify_proof(
-         SerializedProof { data: proof_data },
-         commitment_data,
-     ) {
-         Ok(result) => if result { 1 } else { 0 },
-         Err(e) => {
-             env.throw_new("java/lang/Exception", e.to_string())
-                 .expect("Failed to throw exception");
-             0
-         }
-     }
- }
- 
- #[no_mangle]
- pub extern "system" fn Java_expo_modules_proofmanager_ProofManagerModule_generateAddressNative<'local>(
-     mut env: JNIEnv<'local>,
-     _class: JClass<'local>,
-     seed_phrase: JString<'local>,
-     index: jint,
- ) -> JObject<'local> {
-     let seed_phrase: String = env
-         .get_string(&seed_phrase)
-         .expect("Couldn't get java string!")
-         .into();
- 
-     // Use global ProofManager
-     match PROOF_MANAGER.lock().unwrap().generate_address(seed_phrase, index as u32) {
-         Ok(address_info) => {
-            // Create a new HashMap
-            let hash_map_class = env.find_class("java/util/HashMap").expect("Failed to find HashMap class");
-            let hash_map = env.new_object(
-                hash_map_class,
-                "()V",
-                &[]
-            ).expect("Failed to create HashMap");
+    match PROOF_MANAGER.lock().unwrap().generate_keys(seed_phrase) {
+        Ok(key_pair) => {
+            let hash_map_class = env.find_class("java/util/HashMap")
+                .expect("Failed to find HashMap class");
+            let hash_map = env.new_object(hash_map_class, "()V", &[])
+                .expect("Failed to create HashMap");
 
             // Helper function to add byte array to map
             let mut put_bytes = |key: &str, bytes: &[u8]| {
@@ -149,771 +49,552 @@ pub extern "system" fn Java_expo_modules_proofmanager_ProofManagerModule_createP
                     &hash_map,
                     "put",
                     "(Ljava/lang/Object;Ljava/lang/Object;)Ljava/lang/Object;",
-                    &[
-                        JValue::Object(&j_key.into()),
-                        JValue::Object(&j_value.into())
-                    ]
+                    &[JValue::Object(&j_key.into()), JValue::Object(&j_value.into())]
                 ).expect("Failed to call put");
             };
 
-            // Add all fields
-            put_bytes("diversifier", &address_info.diversifier);
-            put_bytes("transmissionKey", &address_info.transmission_key);
-            put_bytes("clueKey", &address_info.clue_key);
+            put_bytes("spendKey", &key_pair.spend_key);
+            put_bytes("viewKey", &key_pair.view_key);
 
-            hash_map // Return the JObject directly
+            hash_map.into_raw()
         },
         Err(e) => {
             env.throw_new("java/lang/Exception", e.to_string())
                 .expect("Failed to throw exception");
-            // Create a new empty HashMap for error case
-            let hash_map_class = env.find_class("java/util/HashMap").expect("Failed to find HashMap class");
-            env.new_object(
-                hash_map_class,
-                "()V",
-                &[]
-            ).expect("Failed to create empty HashMap") // Return empty HashMap directly
+            let hash_map_class = env.find_class("java/util/HashMap")
+                .expect("Failed to find HashMap class");
+            env.new_object(hash_map_class, "()V", &[])
+                .expect("Failed to create empty HashMap")
+                .into_raw()
         }
     }
 }
 
 
-use decaf377_rdsa::{Signature, SpendAuth, VerificationKey};
-use once_cell::sync::Lazy;
+#[no_mangle]
+pub extern "system" fn Java_expo_modules_proofmanager_ProofManagerModule_generateAddressNative<'local>(
+    mut env: JNIEnv<'local>,
+    _class: JClass<'local>,
+    spend_key_array: JByteArray<'local>,
+    index: jint,
+) -> jobject {
+    // Convert JByteArray to Vec<u8>
+    let result = (|| -> Result<AddressData, ProofError> {
+        let spend_key_bytes = env.convert_byte_array(&spend_key_array)
+            .map_err(|_| ProofError::InvalidKey)?;
 
+        PROOF_MANAGER.lock().unwrap().generate_address(spend_key_bytes, index as u32)
+    })();
+
+    match result {
+        Ok(address) => {
+            let hash_map_class = env.find_class("java/util/HashMap")
+                .expect("Failed to find HashMap class");
+            let hash_map = env.new_object(hash_map_class, "()V", &[])
+                .expect("Failed to create HashMap");
+
+            // Helper function to put bytes into HashMap
+            let mut put_bytes = |key: &str, bytes: &[u8]| {
+                let j_key = env.new_string(key)
+                    .expect("Failed to create string");
+                let j_value = env.byte_array_from_slice(bytes)
+                    .expect("Failed to create byte array");
+
+                env.call_method(
+                    &hash_map,
+                    "put",
+                    "(Ljava/lang/Object;Ljava/lang/Object;)Ljava/lang/Object;",
+                    &[JValue::Object(&j_key.into()), JValue::Object(&j_value.into())]
+                ).expect("Failed to call put");
+            };
+
+            // Add address components to HashMap
+            put_bytes("diversifier", &address.diversifier);
+            put_bytes("transmissionKey", &address.transmission_key);
+            put_bytes("clueKey", &address.clue_key);
+
+            hash_map.into_raw()
+        },
+        Err(e) => {
+            env.throw_new("java/lang/Exception", e.to_string())
+                .expect("Failed to throw exception");
+            let hash_map_class = env.find_class("java/util/HashMap")
+                .expect("Failed to find HashMap class");
+            env.new_object(hash_map_class, "()V", &[])
+                .expect("Failed to create empty HashMap")
+                .into_raw()
+        }
+    }
+}
+
+
+#[no_mangle]
+pub extern "system" fn Java_expo_modules_proofmanager_ProofManagerModule_createNoteNative<'local>(
+    mut env: JNIEnv<'local>,
+    _class: JClass<'local>,
+    debtor_address: JObject<'local>,
+    creditor_address: JObject<'local>,
+    amount: jlong,
+    asset_id: jlong,
+) -> jobject {
+    // Helper function to get address data from Java HashMap
+    let mut get_address_data = |addr_obj: JObject| -> Result<AddressData, jni::errors::Error> {
+        let mut get_bytes = |key: &str| -> Result<Vec<u8>, jni::errors::Error> {
+            let j_key = env.new_string(key)?;
+            let bytes = env.call_method(
+                &addr_obj,
+                "get",
+                "(Ljava/lang/Object;)Ljava/lang/Object;",
+                &[JValue::Object(&j_key.into())]
+            )?.l()?;
+            
+    
+            // Convert to JByteArray first
+            let byte_array = JByteArray::from(bytes);
+            env.convert_byte_array(&byte_array)
+        };
+
+        Ok(AddressData {
+            diversifier: get_bytes("diversifier")?,
+            transmission_key: get_bytes("transmissionKey")?,
+            clue_key: get_bytes("clueKey")?,
+        })
+    };
+
+    let result = (|| -> Result<Note, ProofError> {
+        let debtor = get_address_data(debtor_address)
+            .map_err(|_| ProofError::InvalidKey)?;
+        let creditor = get_address_data(creditor_address)
+            .map_err(|_| ProofError::InvalidKey)?;
+
+        PROOF_MANAGER.lock().unwrap().create_note(
+            debtor,
+            creditor,
+            amount as u64,
+            asset_id as u64,
+        )
+    })();
+
+    match result {
+        Ok(note) => {
+            let hash_map_class = env.find_class("java/util/HashMap")
+                .expect("Failed to find HashMap class");
+            let hash_map = env.new_object(hash_map_class, "()V", &[])
+                .expect("Failed to create HashMap");
+
+            let mut put_bytes = |key: &str, bytes: &[u8]| {
+                let j_key = env.new_string(key)
+                    .expect("Failed to create string");
+                let j_value = env.byte_array_from_slice(bytes)
+                    .expect("Failed to create byte array");
+
+                env.call_method(
+                    &hash_map,
+                    "put",
+                    "(Ljava/lang/Object;Ljava/lang/Object;)Ljava/lang/Object;",
+                    &[JValue::Object(&j_key.into()), JValue::Object(&j_value.into())]
+                ).expect("Failed to call put");
+            };
+
+            // Add note data to HashMap
+            put_bytes("commitment", &note.commitment);
+            
+            // Add addresses
+            let mut put_address = |prefix: &str, addr: &AddressData| {
+                put_bytes(&format!("{}Diversifier", prefix), &addr.diversifier);
+                put_bytes(&format!("{}TransmissionKey", prefix), &addr.transmission_key);
+                put_bytes(&format!("{}ClueKey", prefix), &addr.clue_key);
+            };
+
+            put_address("debtor", &note.debtor_address);
+            put_address("creditor", &note.creditor_address);
+
+            hash_map.into_raw()
+        },
+        Err(e) => {
+            env.throw_new("java/lang/Exception", e.to_string())
+                .expect("Failed to throw exception");
+            let hash_map_class = env.find_class("java/util/HashMap")
+                .expect("Failed to find HashMap class");
+            env.new_object(hash_map_class, "()V", &[])
+                .expect("Failed to create empty HashMap")
+                .into_raw()
+        }
+    }
+}
+
+#[no_mangle]
+pub extern "system" fn Java_expo_modules_proofmanager_ProofManagerModule_signNoteNative<'local>(
+    mut env: JNIEnv<'local>,
+    _class: JClass<'local>,
+    seed_phrase: JString<'local>,
+    note_obj: JObject<'local>,
+) -> jobject {
+    let seed_phrase: String = env
+        .get_string(&seed_phrase)
+        .expect("Couldn't get java string!")
+        .into();
+
+    // Helper function to get note from Java HashMap
+    let mut get_note = |note_obj: JObject| -> Result<Note, jni::errors::Error> {
+        let mut get_bytes = |key: &str| -> Result<Vec<u8>, jni::errors::Error> {
+            let j_key = env.new_string(key)?;
+            let bytes = env.call_method(
+                &note_obj,
+                "get",
+                "(Ljava/lang/Object;)Ljava/lang/Object;",
+                &[JValue::Object(&j_key.into())]
+            )?.l()?;
+    
+            // Convert to JByteArray first
+            let byte_array = JByteArray::from(bytes);
+            env.convert_byte_array(&byte_array)
+        };
+
+        let mut get_address = |prefix: &str| -> Result<AddressData, jni::errors::Error> {
+            Ok(AddressData {
+                diversifier: get_bytes(&format!("{}Diversifier", prefix))?,
+                transmission_key: get_bytes(&format!("{}TransmissionKey", prefix))?,
+                clue_key: get_bytes(&format!("{}ClueKey", prefix))?,
+            })
+        };
+
+        Ok(Note {
+            debtor_address: get_address("debtor")?,
+            creditor_address: get_address("creditor")?,
+            amount: 0, // These values are not needed for signing
+            asset_id: 0,
+            commitment: get_bytes("commitment")?,
+        })
+    };
+
+    let result = (|| -> Result<SignedNote, ProofError> {
+        let note = get_note(note_obj)
+            .map_err(|_| ProofError::InvalidKey)?;
+
+        PROOF_MANAGER.lock().unwrap().sign_note(seed_phrase, note)
+    })();
+
+    match result {
+        Ok(signed_note) => {
+            let hash_map_class = env.find_class("java/util/HashMap")
+                .expect("Failed to find HashMap class");
+            let hash_map = env.new_object(hash_map_class, "()V", &[])
+                .expect("Failed to create HashMap");
+
+            let mut put_bytes = |key: &str, bytes: &[u8]| {
+                let j_key = env.new_string(key)
+                    .expect("Failed to create string");
+                let j_value = env.byte_array_from_slice(bytes)
+                    .expect("Failed to create byte array");
+
+                env.call_method(
+                    &hash_map,
+                    "put",
+                    "(Ljava/lang/Object;Ljava/lang/Object;)Ljava/lang/Object;",
+                    &[JValue::Object(&j_key.into()), JValue::Object(&j_value.into())]
+                ).expect("Failed to call put");
+            };
+
+            put_bytes("signature", &signed_note.signature);
+            put_bytes("verificationKey", &signed_note.verification_key);
+
+            hash_map.into_raw()
+        },
+        Err(e) => {
+            env.throw_new("java/lang/Exception", e.to_string())
+                .expect("Failed to throw exception");
+            let hash_map_class = env.find_class("java/util/HashMap")
+                .expect("Failed to find HashMap class");
+            env.new_object(hash_map_class, "()V", &[])
+                .expect("Failed to create empty HashMap")
+                .into_raw()
+        }
+    }
+}
+
+#[no_mangle]
+pub extern "system" fn Java_expo_modules_proofmanager_ProofManagerModule_verifySignatureNative<'local>(
+    mut env: JNIEnv<'local>,
+    _class: JClass<'local>,
+    verification_key: JByteArray<'local>,
+    commitment: JByteArray<'local>,
+    signature: JByteArray<'local>,
+) -> jboolean {
+    let convert_array = |array: JByteArray<'local>| -> Vec<u8> {
+        env.convert_byte_array(&array)
+            .map(|bytes| bytes.iter().map(|&b| b as u8).collect())
+            .unwrap_or_default()
+    };
+
+    let verification_key_bytes = convert_array(verification_key);
+    let commitment_bytes = convert_array(commitment);
+    let signature_bytes = convert_array(signature);
+
+    match PROOF_MANAGER.lock().unwrap().verify_signature(
+        verification_key_bytes,
+        commitment_bytes,
+        signature_bytes,
+    ) {
+        Ok(result) => if result { 1 } else { 0 },
+        Err(e) => {
+            env.throw_new("java/lang/Exception", e.to_string())
+                .expect("Failed to throw exception");
+            0
+        }
+    }
+}
+
+
+
+uniffi::setup_scaffolding!();
 
 use std::str::FromStr;
-use rand::rngs::OsRng;
-use anyhow::Result;
-use ark_groth16::r1cs_to_qap::LibsnarkReduction;
-use ark_serialize::{CanonicalDeserialize, CanonicalSerialize};
-use decaf377::{Bls12_377, Fq, Fr};
-
-use ark_groth16::{prepare_verifying_key, Groth16, PreparedVerifyingKey, Proof, ProvingKey};
-use base64::prelude::*;
-use ark_ff::ToConstraintField;
-use ark_relations::r1cs::{ConstraintSynthesizer, ConstraintSystemRef};
-use ark_r1cs_std::prelude::*;
-use ark_snark::SNARK;
-
-use penumbra_num::Amount;
-
-use rand::{thread_rng, Rng as _, RngCore};
-
-// Re-export and use types from Penumbra
+use decaf377::{Fq, Fr};
+use decaf377_rdsa::{SpendAuth, VerificationKey, Signature};
 use penumbra_keys::{
-    keys::{Diversifier, SeedPhrase, SpendKey, Bip44Path},
+    keys::{Bip44Path, SeedPhrase, SpendKey},
     Address,
 };
-use penumbra_proto::DomainType;
-use penumbra_shielded_pool::{
-   Rseed
-};
-use penumbra_tct::StateCommitment;
-use penumbra_asset::{Value, asset};
-use penumbra_tct::r1cs::StateCommitmentVar;
-use crate::r1cs::NoteVar;
-pub mod note;
-pub mod r1cs;
+use penumbra_asset::{asset, Value};
+use penumbra_num::Amount;
+use penumbra_shielded_pool::Rseed;
+use decaf377_ka as ka;
+use decaf377_fmd as fmd;
 
-use note::Note;
+use rand::RngCore;
 
-// Domain separator for note commitments
-static NOTECOMMIT_DOMAIN_SEP: Lazy<Fq> = Lazy::new(|| {
-    Fq::from_le_bytes_mod_order(blake2b_simd::blake2b(b"penumbra.notecommit").as_bytes())
-});
+// Our custom note implementation:
+mod note;
 
-const GROTH16_PROOF_LENGTH_BYTES: usize = 192;
-
-
-
-// Core helper functions
-fn sk_from_seed(seed_phrase_randomness: [u8; 32]) -> SpendKey {
-    let seed_phrase = SeedPhrase::from_randomness(&seed_phrase_randomness);
-    SpendKey::from_seed_phrase_bip44(seed_phrase, &Bip44Path::new(0))
-}
-
-fn addr_from_sk(sk: &SpendKey, index: u32) -> Address {
-    let fvk = sk.full_viewing_key();
-    let ivk = fvk.incoming();
-    ivk.payment_address(index.into()).0
-}
-
-// Helper struct for note creation results
-
-// Your existing error type for FFI
-#[derive(Debug, thiserror::Error, uniffi::Error)]
-pub enum ProofError {
-    #[error("")]
-    InvalidSeed,
-    #[error("{error_message}")]
-    ProofGenerationFailed { error_message: String },
-    #[error("{error_message}")]
-    VerificationFailed { error_message: String },
-    #[error("{error_message}")]
-    InvalidNote { error_message: String },
-    #[error("{error_message}")]
-    SerializationError { error_message: String },
-}
-
-
-// Make NoteCreationResult FFI-compatible
-#[derive(uniffi::Record, Clone)]
-pub struct NoteCreationResult {
-    pub note_commitment: Vec<u8>,
-    pub auth_sig: Vec<u8>,
-    pub rk: Vec<u8>,
-}
-
-// Simplified FFI types
-#[derive(uniffi::Record, Clone)]
-pub struct SerializedProof {
-    pub data: Vec<u8>,
-}
-
+// Core FFI Types
 #[derive(uniffi::Record)]
-pub struct AddressInfo {
+pub struct AddressData {
     pub diversifier: Vec<u8>,
     pub transmission_key: Vec<u8>,
     pub clue_key: Vec<u8>,
 }
 
-#[derive(uniffi::Record, Clone)]
-pub struct ProofInput {
-    pub seed_phrase: String,
-    pub amount: u64,
-    pub asset_id: u64,
-    pub address_index: u32,
+#[derive(uniffi::Record)]
+pub struct KeyPair {
+    pub spend_key: Vec<u8>,
+    pub view_key: Vec<u8>,
 }
 
-
-#[derive(uniffi::Record, Clone)]
-pub struct ProofWithCommitment {
-    pub proof: SerializedProof,
+#[derive(uniffi::Record)]
+pub struct Note {
+    pub debtor_address: AddressData,
+    pub creditor_address: AddressData,
+    pub amount: u64,
+    pub asset_id: u64,
     pub commitment: Vec<u8>,
 }
 
-// New type for intent actions
 #[derive(uniffi::Record)]
-pub struct IntentAction {
-    pub note_commitment: Vec<u8>,
-    pub auth_sig: Vec<u8>,
-    pub rk: Vec<u8>,
-    pub zkp: Vec<u8>,
-    pub note_ciphertext: Vec<u8>,    // Primary ciphertext
-    pub aux_ciphertext: Vec<u8>,     // Secondary ciphertext
-}
-
-
-
-// Circuit implementation
-#[derive(Clone, Debug)]
-pub struct OutputCircuit {
-    public: OutputProofPublic,
-    private: OutputProofPrivate,
-}
-
-impl OutputCircuit {
-    fn new(public: OutputProofPublic, private: OutputProofPrivate) -> Self {
-        Self { public, private }
-    }
-}
-
-impl ConstraintSynthesizer<Fq> for OutputCircuit {
-    fn generate_constraints(self, cs: ConstraintSystemRef<Fq>) -> ark_relations::r1cs::Result<()> {
-        // Note: In the allocation of the address on `NoteVar`, we check the diversified base is not identity.
-        let note_var = NoteVar::new_witness(cs.clone(), || Ok(self.private.note.clone()))?;
-
-        // Public inputs
-        let claimed_note_commitment =
-            StateCommitmentVar::new_input(cs.clone(), || Ok(self.public.note_commitment))?;
-
-        // Note commitment integrity
-        let note_commitment = note_var.commit()?;
-        note_commitment.enforce_equal(&claimed_note_commitment)?;
-
-        Ok(())
-    }
-}
-
-
-#[derive(Clone, Debug)]
-pub struct OutputProofPublic {
-    pub note_commitment: StateCommitment,
-}
-
-#[derive(Clone, Debug)]
-pub struct OutputProofPrivate {
+pub struct SignedNote {
     pub note: Note,
+    pub signature: Vec<u8>,
+    pub verification_key: Vec<u8>,
 }
 
-
-
-#[derive(Clone, Debug)]
-pub struct OutputProof([u8; GROTH16_PROOF_LENGTH_BYTES]);
-
-impl OutputProof {
-    pub fn prove(
-        blinding_r: Fq,
-        blinding_s: Fq,
-        pk: &ProvingKey<Bls12_377>,
-        public: OutputProofPublic,
-        private: OutputProofPrivate,
-    ) -> anyhow::Result<Self> {
-        let circuit = OutputCircuit::new(public, private);
-        let proof = Groth16::<Bls12_377, LibsnarkReduction>::create_proof_with_reduction(
-            circuit, pk, blinding_r, blinding_s,
-        )?;
-        
-        let mut proof_bytes = [0u8; GROTH16_PROOF_LENGTH_BYTES];
-        proof.serialize_compressed(&mut proof_bytes[..])?;
-        Ok(Self(proof_bytes))
-    }
-
-    pub fn verify(
-        &self,
-        vk: &PreparedVerifyingKey<Bls12_377>,
-        public: OutputProofPublic,
-    ) -> anyhow::Result<()> {
-        let proof = Proof::deserialize_compressed(&self.0[..])?;
-
-        let mut public_inputs = Vec::new();
-        public_inputs.extend(
-            public
-                .note_commitment
-                .0
-                .to_field_elements()
-                .ok_or_else(|| anyhow::anyhow!("note commitment is not a valid field element"))?,
-        );
-
-        Groth16::<Bls12_377, LibsnarkReduction>::verify_with_processed_vk(
-            vk,
-            public_inputs.as_slice(),
-            &proof,
-        )?.then_some(()).ok_or_else(|| anyhow::anyhow!("proof did not verify"))
-    }
+// Core Error Type
+#[derive(Debug, thiserror::Error, uniffi::Error)]
+pub enum ProofError {
+    #[error("Invalid seed phrase")]
+    InvalidSeed,
+    #[error("Invalid key")]
+    InvalidKey,
+    #[error("Invalid signature")]
+    InvalidSignature,
+    #[error("Note creation failed: {0}")]
+    NoteError(String),
 }
 
-
-
-// Main proof manager object with FFI interface
 #[derive(uniffi::Object)]
 pub struct ProofManager {
-    proving_key: ProvingKey<Bls12_377>,
-    verifying_key: PreparedVerifyingKey<Bls12_377>,
+    // Constant for spend auth as in test.rs
+    spend_auth_randomizer: Fr,
 }
 
-    
-
 #[uniffi::export]
-impl ProofManager {    
-
+impl ProofManager {
     #[uniffi::constructor]
-
-    fn new() -> Result<Arc<Self>, ProofError> {
-        // Create initial circuit for key generation
-        let mut rng = rand::thread_rng();
-        let seed_bytes: [u8; 32] = rng.gen();
-        let addr = Self::generate_dummy_address(&seed_bytes)?;
-        
-        let note = ProofManager::create_test_note(&self, debtor_seed, creditor_seed, amount, asset_id)?;
-        
-        let public = OutputProofPublic {
-            note_commitment: note.commit(),
-        };
-        let private = OutputProofPrivate { note };
-        let circuit = OutputCircuit::new(public, private);
-        
-        let params = generate_setup_params(circuit)?;
-        
+    pub fn new() -> Result<Arc<Self>, ProofError> {
         Ok(Arc::new(Self {
-            proving_key: params.0,
-            verifying_key: params.1,
+            spend_auth_randomizer: Fr::from(1u64),
         }))
     }
 
-    // Helper to create dummy address for initialization
-    fn generate_dummy_address(seed_bytes: &[u8; 32]) -> Result<Address, ProofError> {
-        let seed_phrase = SeedPhrase::from_randomness(seed_bytes);
-        let sk = SpendKey::from_seed_phrase_bip44(seed_phrase, &Bip44Path::new(0));
-        let fvk = sk.full_viewing_key();
-        let ivk = fvk.incoming();
-        let (addr, _) = ivk.payment_address(0u32.into());
-        Ok(addr)
-    }
 
-    // Core note creation function 
-    fn create_test_note(
-        &self,
-        debtor_seed: &[u8; 32],
-        creditor_seed: &[u8; 32],
-        amount: u64,
-        asset_id: u64,
-    ) -> Result<NoteCreationResult, ProofError> {
-        // Create keys and addresses
-        let sk_debtor = {
-            let seed = SeedPhrase::from_randomness(debtor_seed);
-            SpendKey::from_seed_phrase_bip44(seed, &Bip44Path::new(0))
-        };
-
-        let sk_creditor = {
-            let seed = SeedPhrase::from_randomness(creditor_seed);
-            SpendKey::from_seed_phrase_bip44(seed, &Bip44Path::new(0))
-        };
-
-        let debtor_addr = {
-            let fvk = sk_debtor.full_viewing_key();
-            let ivk = fvk.incoming();
-            ivk.payment_address(1u32.into()).0
-        };
-
-        let creditor_addr = {
-            let fvk = sk_creditor.full_viewing_key();
-            let ivk = fvk.incoming();
-            ivk.payment_address(1u32.into()).0
-        };
-
-        // Create randomized spend auth key
-        let spend_auth_randomizer = Fr::from(1u64);
-        let rsk_debtor = sk_debtor.spend_auth_key().randomize(&spend_auth_randomizer);
-        let rk_debtor: VerificationKey<SpendAuth> = rsk_debtor.into();
-
-        // Create and commit note
-        let value = Value {
-            amount: Amount::from(amount),
-            asset_id: asset::Id(Fq::from(asset_id)),
-        };
-
-        let mut rng = thread_rng();
-        let mut rseed_bytes = [0u8; 32];
-        rng.fill_bytes(&mut rseed_bytes);
-
-        let note = Note::from_parts(
-            debtor_addr,
-            creditor_addr,
-            value,
-            Rseed(rseed_bytes),
-        ).map_err(|e| ProofError::InvalidNote {
-            error_message: e.to_string()
-        })?;
-
-        // Generate commitment
-        let commitment = note.commit();
+    // Key Generation
+    fn generate_keys(&self, seed_phrase: String) -> Result<KeyPair, ProofError> {
+        let seed = SeedPhrase::from_str(&seed_phrase)
+            .map_err(|_| ProofError::InvalidSeed)?;
         
-        // Create auth signature
-        let auth_sig = {
-            let sig = rsk_debtor.sign(rand::thread_rng(), &commitment.0.to_bytes());
-            Vec::<u8>::from(sig)
-        };
+        let spend_key = SpendKey::from_seed_phrase_bip44(seed, &Bip44Path::new(0));
+        let view_key = spend_key.full_viewing_key();
 
-        Ok(NoteCreationResult {
-            note_commitment: commitment.0.to_bytes().to_vec(),
-            auth_sig,
-            rk: rk_debtor.to_bytes().to_vec(),
+        Ok(KeyPair {
+            spend_key: spend_key.to_bytes().0.to_vec(),
+            view_key: view_key.nullifier_key().0.to_bytes().to_vec(), // Not sure about this
         })
     }
 
-    // Intent action creation using note result
-    fn create_intent_action(&self, note_result: NoteCreationResult) -> Result<IntentAction, ProofError> {
-        Ok(IntentAction {
-            note_commitment: note_result.note_commitment,
-            auth_sig: note_result.auth_sig, 
-            rk: note_result.rk,
-            zkp: vec![],
-            note_ciphertext: vec![], // Would need note for this
-            aux_ciphertext: vec![],
-        })
-    }
-
-    // Existing verify functionality
-    fn verify_intent_action(&self, action: IntentAction) -> Result<bool, ProofError> {
-        let rk = VerificationKey::<SpendAuth>::try_from(action.rk.as_slice())
-            .map_err(|e| ProofError::VerificationFailed {
-                error_message: e.to_string()
-            })?;
-
-        let sig = Signature::try_from(action.auth_sig.as_slice())
-            .map_err(|e| ProofError::VerificationFailed {
-                error_message: e.to_string()
-            })?;
-
-        Ok(rk.verify(&action.note_commitment, &sig).is_ok())
-    }
-
-    fn generate_commitment(&self, input: &ProofInput) -> Vec<u8> {
-        // Generate the address
-        let address_info = self.generate_address(input.seed_phrase.clone(), input.address_index)
-            .expect("Failed to generate address");
-            
-        // Create the note
-        let note = Note::from_parts(
-            address.clone(),         // debtor
-            address.clone(),         // creditor (self-transfer in this case)
-            value,
-            Rseed(rseed_bytes)
-        ).map_err(|e| ProofError::InvalidNote { 
-            error_message: e.to_string() 
-        })?;
-
-        // Get the commitment
-        note.commit().0.to_bytes().to_vec()
-    }
-
-    fn generate_address(&self, seed_phrase: String, index: u32) -> Result<AddressInfo, ProofError> {
-         // Create a cryptographically secure RNG
-        let mut rng = OsRng;
+     // Address Generation
+     fn generate_address(&self, spend_key_bytes: Vec<u8>, index: u32) -> Result<AddressData, ProofError> {
+        let spend_key_bytes: [u8; 32] = spend_key_bytes.try_into()
+            .map_err(|_| ProofError::InvalidKey)?;
+        let spend_key = SpendKey::from(SpendKeyBytes(spend_key_bytes));
         
-        // Generate or parse seed phrase based on input
-        let seed = if seed_phrase.is_empty() {
-            SeedPhrase::generate(&mut rng)
-        } else {
-            SeedPhrase::from_str(&seed_phrase)
-                .map_err(|_| ProofError::InvalidSeed)?
-        };
-            
-        let sk = SpendKey::from_seed_phrase_bip44(seed, &Bip44Path::new(index));
-        let fvk = sk.full_viewing_key();
+        let fvk = spend_key.full_viewing_key();
         let ivk = fvk.incoming();
-        let (address, _dtk) = ivk.payment_address(index.into());
+        let (address, _) = ivk.payment_address(index.into());
 
-        Ok(AddressInfo {
+        Ok(AddressData {
             diversifier: address.diversifier().0.to_vec(),
             transmission_key: address.transmission_key().0.to_vec(),
             clue_key: address.clue_key().0.to_vec(),
         })
     }
 
-    fn create_proof(&self, input: ProofInput) -> Result<SerializedProof, ProofError> {
-        let mut rng = thread_rng();
-        let blinding_r = Fq::rand(&mut rng);
-        let blinding_s = Fq::rand(&mut rng);
 
-        let address = self.generate_address(input.seed_phrase, input.address_index)?;
-        let note = Self::create_test_note(address, input.amount, input.asset_id)?;
-        
-        let public = OutputProofPublic {
-            note_commitment: note.commit(),
-        };
-        let private = OutputProofPrivate { note };
-
-        let proof = OutputProof::prove(
-            blinding_r,
-            blinding_s,
-            &self.proving_key,
-            public,
-            private,
-        ).map_err(|e| ProofError::ProofGenerationFailed {
-            error_message: e.to_string(),
-        })?;
-
-        Ok(SerializedProof {
-            data: proof.0.to_vec(),
-        })
-    }
-
-    fn create_proof_with_commitment(&self, input: ProofInput) -> Result<ProofWithCommitment, ProofError> {
-        // Generate address and note
-        let address = self.generate_address(input.seed_phrase, input.address_index)?;
-        let note = create_test_note(address, input.amount, input.asset_id)?;
-        
-        // Generate commitment first
-        let commitment = note.commit();
-        let commitment_bytes = commitment.0.to_bytes().to_vec();
-        
-        // Create proof using same note
-        let public = OutputProofPublic {
-            note_commitment: commitment,
-        };
-        let private = OutputProofPrivate { note };
-
-        let mut rng = thread_rng();
-        let proof = OutputProof::prove(
-            Fq::rand(&mut rng),
-            Fq::rand(&mut rng),
-            &self.proving_key,
-            public,
-            private,
-        ).map_err(|e| ProofError::ProofGenerationFailed {
-            error_message: e.to_string(),
-        })?;
-
-        Ok(ProofWithCommitment {
-            proof: SerializedProof {
-                data: proof.0.to_vec(),
-            },
-            commitment: commitment_bytes,
-        })
-    }
-
-    fn verify_proof(
+    // Create Note
+    pub fn create_note(
         &self,
-        proof: SerializedProof,
+        debtor_address: AddressData,
+        creditor_address: AddressData,
+        amount: u64,
+        asset_id: u64,
+    ) -> Result<Note, ProofError> {
+        // Clone the data before conversion
+        let debtor_addr = Address::from_components(
+        Diversifier(debtor_address.diversifier.clone().try_into().map_err(|_| ProofError::InvalidKey)?),
+        ka::Public(debtor_address.transmission_key.clone().try_into().map_err(|_| ProofError::InvalidKey)?),
+        fmd::ClueKey(debtor_address.clue_key.clone().try_into().map_err(|_| ProofError::InvalidKey)?),
+    ).ok_or_else(|| ProofError::InvalidKey)?;
+
+    let creditor_addr = Address::from_components(
+        Diversifier(creditor_address.diversifier.clone().try_into().map_err(|_| ProofError::InvalidKey)?),
+        ka::Public(creditor_address.transmission_key.clone().try_into().map_err(|_| ProofError::InvalidKey)?),
+        fmd::ClueKey(creditor_address.clue_key.clone().try_into().map_err(|_| ProofError::InvalidKey)?),
+    ).ok_or_else(|| ProofError::InvalidKey)?;
+    
+
+        let value = Value {
+            amount: Amount::from(amount),
+            asset_id: asset::Id(Fq::from(asset_id)),
+        };
+
+        let mut rng = rand::thread_rng();
+        let mut rseed_bytes = [0u8; 32];
+        rng.fill_bytes(&mut rseed_bytes);
+
+        let note = crate::note::Note::from_parts(
+            debtor_addr,
+            creditor_addr,
+            value,
+            Rseed(rseed_bytes),
+        ).map_err(|e| ProofError::NoteError(e.to_string()))?;
+
+        let commitment = note.commit().0.to_bytes();
+
+        Ok(Note {
+            debtor_address,
+            creditor_address,
+            amount,
+            asset_id,
+            commitment: commitment.to_vec(),
+        })
+    }
+
+    // Sign Note
+    pub fn sign_note(
+        &self,
+        seed_phrase: String,
+        note: Note,
+    ) -> Result<SignedNote, ProofError> {
+        // Generate spend key from seed phrase
+        let seed = SeedPhrase::from_str(&seed_phrase)
+            .map_err(|_| ProofError::InvalidSeed)?;
+        let spend_key = SpendKey::from_seed_phrase_bip44(seed, &Bip44Path::new(0));
+
+        // Create randomized spend auth key
+        let rsk = spend_key.spend_auth_key().randomize(&self.spend_auth_randomizer);
+        let rk: VerificationKey<SpendAuth> = rsk.into();
+
+        // Sign the commitment
+        let signature = {
+            let sig = rsk.sign(rand::thread_rng(), &note.commitment);
+            Vec::<u8>::from(sig)
+        };
+
+        Ok(SignedNote {
+            note,
+            signature,
+            verification_key: rk.to_bytes().to_vec(),
+        })
+    }
+
+       // Verify signature
+       pub fn verify_signature(
+        &self,
+        verification_key_bytes: Vec<u8>,
         commitment: Vec<u8>,
+        signature: Vec<u8>,
     ) -> Result<bool, ProofError> {
-        println!("Starting proof verification");
-        println!("Proof length: {}", proof.data.len());
-        println!("Commitment length: {}", commitment.len());
-        println!("Commitment bytes: {:?}", commitment);
-        
-        let proof_bytes: [u8; GROTH16_PROOF_LENGTH_BYTES] = proof.data.clone().try_into()
-            .map_err(|_| ProofError::SerializationError {
-                error_message: format!("Invalid proof length, expected {} got {}", 
-                    GROTH16_PROOF_LENGTH_BYTES, proof.data.len())
-            })?;
-            
-        let proof = OutputProof(proof_bytes);
-        
-        // Convert Vec<u8> to [u8; 32] for StateCommitment
-        let commitment_bytes: [u8; 32] = commitment.clone().try_into()
-            .map_err(|_| ProofError::SerializationError {
-                error_message: format!("Invalid commitment length, expected 32 got {}", 
-                    commitment.len())
-            })?;
-    
-        println!("Commitment bytes: {:?}", commitment_bytes);
-        
-        let note_commitment = StateCommitment::try_from(commitment_bytes)
-            .map_err(|e| ProofError::SerializationError {
-                error_message: format!("Invalid commitment format: {}", e)
-            })?;
-            
-        let public = OutputProofPublic { note_commitment };
-    
-        println!("Created public input with note commitment: {:?}", note_commitment);
-    
-        match proof.verify(&self.verifying_key, public) {
-            Ok(_) => {
-                println!("Proof verified successfully");
-                Ok(true)
-            },
-            Err(e) => {
-                println!("Proof verification failed: {:?}", e);
-                Err(ProofError::VerificationFailed {
-                    error_message: e.to_string(),
-                })
-            }
-        }
+        let rk = VerificationKey::<SpendAuth>::try_from(verification_key_bytes.as_slice())
+            .map_err(|_| ProofError::InvalidKey)?;
+
+        let sig = Signature::try_from(signature.as_slice())
+            .map_err(|_| ProofError::InvalidSignature)?;
+
+        // Map the verification result to a bool
+        Ok(rk.verify(&commitment, &sig).is_ok())
     }
 
-
-
-    // // This becomes much simpler now
-    // fn create_intent_action(&self, result: NoteCreationResult) -> Result<IntentAction, ProofError> {
-    //     let note_ciphertext = serde_json::to_vec(&result.note)
-    //         .map_err(|e| ProofError::SerializationError { 
-    //             error_message: e.to_string() 
-    //         })?;
-
-    //     Ok(IntentAction {
-    //         note_commitment: result.commitment,
-    //         auth_sig: result.auth_sig,
-    //         rk: result.rk,
-    //         zkp: vec![],
-    //         note_ciphertext,
-    //         aux_ciphertext: vec![],
-    //     })
-    // }
-
-    // fn verify_intent_action(
-    //     &self,
-    //     action: IntentAction,
-    // ) -> Result<bool, ProofError> {
-    //     // Reconstruct verification key
-    //     let rk = VerificationKey::<SpendAuth>::try_from(action.rk.as_slice())
-    //         .map_err(|e| ProofError::VerificationFailed { 
-    //             error_message: e.to_string() 
-    //         })?;
-
-    //     // Reconstruct signature
-    //     let sig = Signature::try_from(action.auth_sig.as_slice())
-    //         .map_err(|e| ProofError::VerificationFailed { 
-    //             error_message: e.to_string() 
-    //         })?;
-
-    //     // Verify signature
-    //     Ok(rk.verify(&action.note_commitment, &sig))
-    // }
-
-
-
-
-    // Helper methods
-    fn debug_proof(&self, proof: SerializedProof) -> Result<String, ProofError> {
-        Ok(BASE64_STANDARD.encode(&proof.data))
-    }
-
-    fn debug_commitment(&self, commitment: Vec<u8>) -> Result<String, ProofError> {
-        Ok(BASE64_STANDARD.encode(&commitment))
-    }
 }
 
-// // Private helper functions
-impl ProofManager {
-    // fn create_note(
-    //     &self,
-    //     debtor_addr: Address,
-    //     creditor_addr: Address,
-    //     amount: u64,
-    //     asset_id: u64,
-    // ) -> Result<crate::note::Note, ProofError> {
-    //     let value = Value {
-    //         amount: Amount::from(amount),
-    //         asset_id: asset::Id(Fq::from(asset_id)),
-    //     };
-
-    //     let mut rng = rand::thread_rng();
-    //     let mut rseed_bytes = [0u8; 32];
-    //     rng.fill_bytes(&mut rseed_bytes);
-
-    //     crate::note::Note::from_parts(
-    //         debtor_addr,
-    //         creditor_addr,
-    //         value,
-    //         Rseed(rseed_bytes),
-    //     ).map_err(|e| ProofError::InvalidNote { 
-    //         error_message: e.to_string() 
-    //     })
-    // }
-
-//     // Helper function to create a spend key from seed phrase
-//     fn create_spend_key(
-//         &self,
-//         seed_phrase: &str,
-//     ) -> Result<SpendKey, ProofError> {
-//         let seed_phrase = SeedPhrase::from_str(seed_phrase)
-//             .map_err(|_| ProofError::InvalidSeed)?;
-//         Ok(SpendKey::from_seed_phrase_bip44(seed_phrase, &Bip44Path::new(0)))
-//     }
-}
-
-
-
-fn generate_setup_params(
-    circuit: OutputCircuit,
-) -> Result<(ProvingKey<Bls12_377>, PreparedVerifyingKey<Bls12_377>), ProofError> {
-    let mut rng = thread_rng();
-    
-    let (pk, vk) = Groth16::<Bls12_377>::circuit_specific_setup(circuit, &mut rng)
-        .map_err(|e| ProofError::ProofGenerationFailed {
-            error_message: format!("Failed to generate setup parameters: {}", e),
-        })?;
-
-    let pvk = prepare_verifying_key(&vk);
-    
-    Ok((pk, pvk))
-}
-
-// Protocol buffer implementations
-impl DomainType for OutputProof {
-    type Proto = penumbra_proto::penumbra::core::component::shielded_pool::v1::ZkOutputProof;
-}
-
-impl From<OutputProof> for penumbra_proto::penumbra::core::component::shielded_pool::v1::ZkOutputProof {
-    fn from(proof: OutputProof) -> Self {
-        Self {
-            inner: proof.0.to_vec(),
-        }
-    }
-}
-
-impl TryFrom<penumbra_proto::penumbra::core::component::shielded_pool::v1::ZkOutputProof> for OutputProof {
-    type Error = anyhow::Error;
-
-    fn try_from(proto: penumbra_proto::penumbra::core::component::shielded_pool::v1::ZkOutputProof) -> Result<Self, Self::Error> {
-        Ok(OutputProof(proto.inner[..].try_into()?))
-    }
-}
-
-
+// // Tests
 // #[cfg(test)]
 // mod tests {
 //     use super::*;
-    
-
-//     // Add test helpers that match test.rs
-//     #[test]
-//     fn sk_from_seed(seed_phrase_randomness: [u8; 32]) -> SpendKey {
-//         let seed_phrase = SeedPhrase::from_randomness(&seed_phrase_randomness);
-//         SpendKey::from_seed_phrase_bip44(seed_phrase, &Bip44Path::new(0))
-//     }
 
 //     #[test]
-//     fn addr_from_sk(sk: &SpendKey, index: u32) -> Address {
-//         let fvk = sk.full_viewing_key();
-//         let ivk = fvk.incoming();
-//         ivk.payment_address(index.into()).0
-//     }
+//     fn test_full_flow() -> Result<(), CryptoError> {
+//         let manager = CryptoManager::new()?;
 
-//     #[test]
-//     fn test_create_obligations() -> Result<(), ProofError> {
-//         let mut rng = rand::thread_rng();
-//         let seed_phrase_randomness_1: [u8; 32] = rng.gen();
-//         let seed_phrase_randomness_2: [u8; 32] = rng.gen();
-        
-//         let sk_debtor = Self::sk_from_seed(seed_phrase_randomness_1);
-//         let debtor_addr = Self::addr_from_sk(&sk_debtor, 1);
-        
-//         let sk_creditor = Self::sk_from_seed(seed_phrase_randomness_2);
-//         let creditor_addr = Self::addr_from_sk(&sk_creditor, 1);
-
-//         // Test note creation
-//         let note = self.create_note(
-//             debtor_addr,
-//             creditor_addr,
-//             30,
-//             1
+//         // Generate keys
+//         let keys = manager.generate_keys(
+//             "test test test test test test test test test test test junk".to_string()
 //         )?;
 
-//         assert_eq!(note.amount(), Amount::from(30u64));
-//         Ok(())
-//     }
-
-
-//     #[test]
-//     fn test_proof_manager_full() -> Result<(), ProofError> {
-//         let manager = ProofManager::new()?;
-
-//         // Test existing ZKP functionality
-//         let input = ProofInput {
-//             seed_phrase: "test test test test test test test test test test test junk".to_string(),
-//             amount: 1000,
-//             asset_id: 1,
-//             address_index: 0,
-//         };
-
-//         // Test proof generation and verification (existing functionality)
-//         let proof_result = manager.create_proof(input.clone())?;
-//         assert!(manager.verify_proof(proof_result, vec![])?);
-
-//         // Test new intent action functionality
-//         let intent = manager.create_intent_action(
-//             "test test test test test test test test test test test junk".to_string(),
-//             "word word word word word word word word word word word word".to_string(),
-//             1000,
-//             1,
-//             0,
+//         // Generate addresses
+//         let debtor_address = manager.generate_address(keys.spend_key.clone(), 1)?;
+//         let creditor_keys = manager.generate_keys(
+//             "word word word word word word word word word word word word".to_string()
 //         )?;
-        
-//         assert!(manager.verify_intent_action(intent)?);
+//         let creditor_address = manager.generate_address(creditor_keys.spend_key, 1)?;
 
-//         Ok(())
-//     }
-    
-//     #[test]
-//     fn test_exact_obligation_flow() -> Result<(), ProofError> {
-//         let manager = ProofManager::new()?;
-
-//         // Test with exact values from test.rs
-//         let intent = manager.create_intent_action(
-//             "test test test test test test test test test test test junk".to_string(),
-//             "word word word word word word word word word word word word".to_string(),
-//             30, // Exact amount from test.rs
-//             1,  // TEST_ASSET_ID
-//             1,  // Same index as test.rs
+//         // Create and sign note
+//         let note = manager.create_note(
+//             debtor_address,
+//             creditor_address,
+//             30u64,
+//             1u64,
 //         )?;
 
-//         assert!(manager.verify_intent_action(intent)?);
+//         let spendkey = keys.spend_key.
+
+
+//         let signed = manager.sign_note(, note)?;
+
+//         // Verify signature
+//         assert!(manager.verify_signature(
+//             signed.verification_key,
+//             signed.note.commitment,
+//             signed.signature,
+//         )?);
+
 //         Ok(())
 //     }
 // }
-

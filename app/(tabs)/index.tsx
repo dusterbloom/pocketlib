@@ -5,120 +5,88 @@ import { ThemedText } from '@/components/ThemedText';
 import { ThemedView } from '@/components/ThemedView';
 
 import * as ProofManager from '@/modules/proofmanager'
-import { ProofInput, IntentAction } from '@/modules/proofmanager/src/ProofManager.types';
 import { useEffect, useState } from 'react';
 import { Text } from "react-native";
 import { addressToHex, bytesToHex, convertByteArraysToHex } from '@/utils/hex';
 
+import { AddressData, KeyPair, Note, SignedNote } from '@/modules/proofmanager/src/ProofManager.types';
+
 export default function HomeScreen() {
-  // Existing state
-  const [addressHex, setAddressHex] = useState<{
-    clueKey: string;
-    diversifier: string;
-    transmissionKey: string;
-  } | null>(null);
-
-  const [proofHex, setProofHex] = useState<string | null>(null);
-  const [commitmentHex, setCommitmentHex] = useState<string | null>(null);
+  // Updated state
+  const [debtorAddress, setDebtorAddress] = useState<AddressData | null>(null);
+  const [creditorAddress, setCreditorAddress] = useState<AddressData | null>(null);
+  const [note, setNote] = useState<Note | null>(null);
+  const [signedNote, setSignedNote] = useState<SignedNote | null>(null);
   const [isValid, setIsValid] = useState<boolean | null>(null);
-
-  // New state for intent actions
-  const [intentAction, setIntentAction] = useState<IntentAction | null>(null);
-  const [intentIsValid, setIntentIsValid] = useState<boolean | null>(null);
-
-  const [error, setError] = useState<string | null>(null);  
+  const [error, setError] = useState<string | null>(null);
+  
   const [timings, setTimings] = useState<{
+    keyGenTime: number | null;
     addressGenTime: number | null;
-    proofGenTime: number | null;
+    noteCreateTime: number | null;
+    signTime: number | null;
     verifyTime: number | null;
-    intentGenTime: number | null;
-    intentVerifyTime: number | null;
   }>({
+    keyGenTime: null,
     addressGenTime: null,
-    proofGenTime: null,
+    noteCreateTime: null,
+    signTime: null,
     verifyTime: null,
-    intentGenTime: null,
-    intentVerifyTime: null,
   });
 
   useEffect(() => {
-    async function generateProof() {
+    async function generateAndVerify() {
       try {
-        // Existing seed phrases
+        // Test seed phrases
         const debtorPhrase = 'garage advice weekend this dose mango sign horse tool torch mosquito repeat sentence valid scheme pull punch need prosper build actor say cancel allow';
         const creditorPhrase = 'word word word word word word word word word word word word';
 
-        const input: ProofInput = {
-          seedPhrase: debtorPhrase,
-          amount: 1000,
-          assetId: 1,
-          addressIndex: 0,
-        };
+        // Generate keys for debtor
+        const startKeyGen = Date.now();
+        const debtorKeys = await ProofManager.generateKeys(debtorPhrase);
+        const endKeyGen = Date.now();
+        setTimings(prev => ({ ...prev, keyGenTime: endKeyGen - startKeyGen }));
 
-        // --- Existing ZKP Generation Flow ---
-        console.log('Generating proof with input:', input);
-
+        // Generate addresses
         const startAddr = Date.now();
-        const address = await ProofManager.generateAddress(
-          input.seedPhrase,
-          input.addressIndex
-        );
+        const debtorAddr = await ProofManager.generateAddress(debtorKeys, 0);
+        const creditorKeys = await ProofManager.generateKeys(creditorPhrase);
+        const creditorAddr = await ProofManager.generateAddress(creditorKeys, 0);
         const endAddr = Date.now();
-        const addressGenTime = endAddr - startAddr;
+        
+        setDebtorAddress(debtorAddr);
+        setCreditorAddress(creditorAddr);
+        setTimings(prev => ({ ...prev, addressGenTime: endAddr - startAddr }));
 
-        const hexAddr = convertByteArraysToHex(address);
-        setAddressHex(hexAddr);
-        setTimings((prev) => ({ ...prev, addressGenTime }));
+        // Create note
+        const startNote = Date.now();
+        const newNote = await ProofManager.createNote(
+          debtorAddr,
+          creditorAddr,
+          1000, // amount
+          1     // asset_id
+        );
+        const endNote = Date.now();
+        setNote(newNote);
+        setTimings(prev => ({ ...prev, noteCreateTime: endNote - startNote }));
 
-        const startProof = Date.now();
-        const result = await ProofManager.createProof(input);
-        const endProof = Date.now();
-        const proofGenTime = endProof - startProof;
+        // Sign note
+        const startSign = Date.now();
+        const signed = await ProofManager.signNote(debtorPhrase, newNote);
+        const endSign = Date.now();
+        setSignedNote(signed);
+        setTimings(prev => ({ ...prev, signTime: endSign - startSign }));
 
-        const proofHexString = convertByteArraysToHex(result.proof);
-        const commitmentHexString = convertByteArraysToHex(result.commitment);
-        setProofHex(proofHexString);
-        setCommitmentHex(commitmentHexString);
-        setTimings((prev) => ({ ...prev, proofGenTime }));
-
+        // Verify signature
         const startVerify = Date.now();
-        const valid = await ProofManager.verifyProof(
-          result.proof,
-          result.commitment
+        const valid = await ProofManager.verifySignature(
+          signed.verificationKey,
+          signed.note.commitment,
+          signed.signature
         );
         const endVerify = Date.now();
         setIsValid(valid);
-        setTimings((prev) => ({ ...prev, verifyTime: endVerify - startVerify }));
-
-        // --- Intent Action Flow ---
-console.log('Generating intent action...');
-
-// First get creditor's address (in a real app this would be passed in)
-const creditorAddress = await ProofManager.generateAddress(
-  'test test test test test test test test test test test junk',
-  1  // Different index for creditor
-);
-
-        const startIntent = Date.now();
-        const intentResult = await ProofManager.createIntentAction(
-          debtorPhrase,
-          30, // Amount
-          1,  // TEST_ASSET_ID
-          1,  // address index
-          creditorAddress
-        );
-        const endIntent = Date.now();
-        setIntentAction(intentResult);
-        setTimings((prev) => ({ ...prev, intentGenTime: endIntent - startIntent }));
-
-        const startIntentVerify = Date.now();
-        const intentValid = await ProofManager.verifyIntentAction(intentResult);
-        const endIntentVerify = Date.now();
-        setIntentIsValid(intentValid);
-        setTimings((prev) => ({ 
-          ...prev, 
-          intentVerifyTime: endIntentVerify - startIntentVerify 
-        }));
+        setTimings(prev => ({ ...prev, verifyTime: endVerify - startVerify }));
 
       } catch (err) {
         console.error('Error:', err);
@@ -126,7 +94,7 @@ const creditorAddress = await ProofManager.generateAddress(
       }
     }
 
-    generateProof();
+    generateAndVerify();
   }, []);
 
   return (
@@ -143,40 +111,42 @@ const creditorAddress = await ProofManager.generateAddress(
         <HelloWave />
       </ThemedView>
 
-      {/* ZKP Section */}
+      {/* Address Section */}
       <ThemedView style={styles.stepContainer}>
-        <ThemedText type="subtitle">ZKP Generation Results</ThemedText>
-
-        <Text>Proof (hex): {proofHex ?? 'Generating...'}</Text>
-        <Text>Commitment (hex): {commitmentHex ?? 'Generating...'}</Text>
-
-        {addressHex && (
+        <ThemedText type="subtitle">Address Generation Results</ThemedText>
+        {debtorAddress && (
           <>
-            <Text>Address ClueKey (hex): {addressHex.clueKey}</Text>
-            <Text>Address Diversifier (hex): {addressHex.diversifier}</Text>
-            <Text>Address TransmissionKey (hex): {addressHex.transmissionKey}</Text>
+            <Text>Debtor Address:</Text>
+            <Text>Diversifier: {bytesToHex(debtorAddress.diversifier)}</Text>
+            <Text>Transmission Key: {bytesToHex(debtorAddress.transmissionKey)}</Text>
+            <Text>Clue Key: {bytesToHex(debtorAddress.clueKey)}</Text>
           </>
-        )}
-
-        {isValid !== null && (
-          <Text>Proof verification: {isValid ? 'Valid ✅' : 'Invalid ❌'}</Text>
         )}
       </ThemedView>
 
-      {/* Intent Action Section */}
+      {/* Note Section */}
       <ThemedView style={styles.stepContainer}>
-        <ThemedText type="subtitle">Intent Action Results</ThemedText>
-
-        {intentAction && (
+        <ThemedText type="subtitle">Note Creation Results</ThemedText>
+        {note && (
           <>
-            <Text>Note Commitment (hex): {convertByteArraysToHex(intentAction.noteCommitment)}</Text>
-            <Text>Auth Signature (hex): {convertByteArraysToHex(intentAction.authSig)}</Text>
-            <Text>Verification Key (hex): {convertByteArraysToHex(intentAction.rk)}</Text>
+            <Text>Amount: {note.amount}</Text>
+            <Text>Asset ID: {note.assetId}</Text>
+            <Text>Commitment: {bytesToHex(note.commitment)}</Text>
           </>
         )}
+      </ThemedView>
 
-        {intentIsValid !== null && (
-          <Text>Intent verification: {intentIsValid ? 'Valid ✅' : 'Invalid ❌'}</Text>
+      {/* Signature Section */}
+      <ThemedView style={styles.stepContainer}>
+        <ThemedText type="subtitle">Signature Results</ThemedText>
+        {signedNote && (
+          <>
+            <Text>Signature: {bytesToHex(signedNote.signature)}</Text>
+            <Text>Verification Key: {bytesToHex(signedNote.verificationKey)}</Text>
+          </>
+        )}
+        {isValid !== null && (
+          <Text>Signature verification: {isValid ? 'Valid ✅' : 'Invalid ❌'}</Text>
         )}
       </ThemedView>
 
@@ -190,23 +160,24 @@ const creditorAddress = await ProofManager.generateAddress(
       {/* Timing Results */}
       <ThemedView style={styles.stepContainer}>
         <ThemedText type="subtitle">Timing Results</ThemedText>
+        {timings.keyGenTime != null && (
+          <Text>Key Generation: {timings.keyGenTime} ms</Text>
+        )}
         {timings.addressGenTime != null && (
           <Text>Address Generation: {timings.addressGenTime} ms</Text>
         )}
-        {timings.proofGenTime != null && (
-          <Text>Proof Generation: {timings.proofGenTime} ms</Text>
+        {timings.noteCreateTime != null && (
+          <Text>Note Creation: {timings.noteCreateTime} ms</Text>
+        )}
+        {timings.signTime != null && (
+          <Text>Note Signing: {timings.signTime} ms</Text>
         )}
         {timings.verifyTime != null && (
-          <Text>Proof Verification: {timings.verifyTime} ms</Text>
-        )}
-        {timings.intentGenTime != null && (
-          <Text>Intent Generation: {timings.intentGenTime} ms</Text>
-        )}
-        {timings.intentVerifyTime != null && (
-          <Text>Intent Verification: {timings.intentVerifyTime} ms</Text>
+          <Text>Signature Verification: {timings.verifyTime} ms</Text>
         )}
       </ThemedView>
 
+      {/* Developer Tools Section */}
       <ThemedView style={styles.stepContainer}>
         <ThemedText type="subtitle">Developer Tools</ThemedText>
         <ThemedText>
@@ -224,6 +195,7 @@ const creditorAddress = await ProofManager.generateAddress(
     </ParallaxScrollView>
   );
 }
+  
 
 const styles = StyleSheet.create({
   titleContainer: {
