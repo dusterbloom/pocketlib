@@ -190,7 +190,7 @@ use ark_snark::SNARK;
 use once_cell::sync::Lazy;
 use decaf377::{
     Bls12_377,
-    Fq,
+    Fq, Fr,
 
 };
 use decaf377_fmd as fmd;
@@ -215,7 +215,7 @@ use penumbra_tct::r1cs::StateCommitmentVar;
 pub mod note;
 pub mod r1cs;
 
-use penumbra_shielded_pool::note::NoteVar;
+use note::{Note, NoteVar};
 
 // Domain separator for note commitments
 static NOTECOMMIT_DOMAIN_SEP: Lazy<Fq> = Lazy::new(|| {
@@ -267,6 +267,17 @@ pub struct ProofInput {
 pub struct ProofWithCommitment {
     pub proof: SerializedProof,
     pub commitment: Vec<u8>,
+}
+
+// New type for intent actions
+#[derive(uniffi::Record)]
+pub struct IntentAction {
+    pub note_commitment: Vec<u8>,
+    pub auth_sig: Vec<u8>,
+    pub rk: Vec<u8>,
+    pub zkp: Vec<u8>,
+    pub note_ciphertext: Vec<u8>,    // Primary ciphertext
+    pub aux_ciphertext: Vec<u8>,     // Secondary ciphertext
 }
 
 // Circuit implementation
@@ -364,6 +375,7 @@ pub struct ProofManager {
 #[uniffi::export]
 impl ProofManager {
     #[uniffi::constructor]
+    
     fn new() -> Result<Arc<Self>, ProofError> {
         // Create a basic address for initialization
         let diversifier_bytes = [0u8; 16];
@@ -393,6 +405,8 @@ impl ProofManager {
         ).map_err(|e| ProofError::ProofGenerationFailed {
             error_message: format!("Failed to create initial note: {}", e)
         })?;
+
+        
 
         // Create circuit with these values
         let public = OutputProofPublic {
@@ -562,6 +576,105 @@ impl ProofManager {
         }
     }
 
+
+    fn create_intent_action(
+        &self,
+        seed_phrase: String,
+        creditor_seed_phrase: String,
+        amount: u64,
+        asset_id: u64,
+        address_index: u32,
+    ) -> Result<IntentAction, ProofError> {
+        // Parse seed phrases
+        let seed_phrase = SeedPhrase::from_str(&seed_phrase)
+            .map_err(|_| ProofError::InvalidSeed)?;
+        let creditor_seed_phrase = SeedPhrase::from_str(&creditor_seed_phrase)
+            .map_err(|_| ProofError::InvalidSeed)?;
+
+        // Generate spend keys
+        let sk_debtor = SpendKey::from_seed_phrase_bip44(seed_phrase, &Bip44Path::new(0));
+        let sk_creditor = SpendKey::from_seed_phrase_bip44(creditor_seed_phrase, &Bip44Path::new(0));
+
+        // Generate addresses
+        let fvk_debtor = sk_debtor.full_viewing_key();
+        let ivk_debtor = fvk_debtor.incoming();
+        let (debtor_addr, _) = ivk_debtor.payment_address(address_index.into());
+
+        let fvk_creditor = sk_creditor.full_viewing_key();
+        let ivk_creditor = fvk_creditor.incoming();
+        let (creditor_addr, _) = ivk_creditor.payment_address(address_index.into());
+
+        // Create randomized spend auth key and verification key
+        let spend_auth_randomizer = Fr::from(1u64);
+        let rsk_debtor = sk_debtor.spend_auth_key().randomize(&spend_auth_randomizer);
+        let rk_debtor: VerificationKey<SpendAuth> = rsk_debtor.into();
+
+        // Create the value
+        let value = Value {
+            amount: Amount::from(amount),
+            asset_id: asset::Id(Fq::from(asset_id)),
+        };
+
+        let mut rng = rand::thread_rng();
+        let mut rseed_bytes = [0u8; 32];
+        rng.fill_bytes(&mut rseed_bytes);
+        
+        // Use our custom Note implementation with 4 arguments
+        let note = crate::note::Note::from_parts(
+            debtor_addr.clone(),    // debtor
+            creditor_addr.clone(),  // creditor
+            value,                  // value
+            Rseed(rseed_bytes),     // rseed
+        ).map_err(|e| ProofError::InvalidNote { 
+            error_message: e.to_string() 
+        })?;
+
+        // Get note commitment
+        let note_commitment = note.commit().0.to_bytes();
+
+        // Sign the note commitment
+        let auth_sig = rsk_debtor.sign(rand::thread_rng(), &note_commitment);
+
+        // Create note ciphertext
+        let note_ciphertext = serde_json::to_vec(&note)
+            .map_err(|e| ProofError::SerializationError { 
+                error_message: e.to_string() 
+            })?;
+
+        Ok(IntentAction {
+            note_commitment: note_commitment.to_vec(),
+            auth_sig: Vec::<u8>::from(auth_sig),
+            rk: rk_debtor.to_bytes().to_vec(),
+            zkp: vec![], // This will be updated when we add ZKP generation
+            note_ciphertext,
+            aux_ciphertext: vec![], // Empty secondary ciphertext
+        })
+    }
+
+
+    fn verify_intent_action(
+        &self,
+        action: IntentAction,
+    ) -> Result<bool, ProofError> {
+        // Reconstruct verification key
+        let rk = VerificationKey::<SpendAuth>::try_from(action.rk.as_slice())
+            .map_err(|e| ProofError::VerificationFailed { 
+                error_message: e.to_string() 
+            })?;
+
+        // Reconstruct signature
+        let sig = Signature::try_from(action.auth_sig.as_slice())
+            .map_err(|e| ProofError::VerificationFailed { 
+                error_message: e.to_string() 
+            })?;
+
+        // Verify signature
+        Ok(rk.verify(&action.note_commitment, &sig))
+    }
+
+
+
+
     // Helper methods
     fn debug_proof(&self, proof: SerializedProof) -> Result<String, ProofError> {
         Ok(BASE64_STANDARD.encode(&proof.data))
@@ -650,5 +763,58 @@ impl TryFrom<penumbra_proto::penumbra::core::component::shielded_pool::v1::ZkOut
 
     fn try_from(proto: penumbra_proto::penumbra::core::component::shielded_pool::v1::ZkOutputProof) -> Result<Self, Self::Error> {
         Ok(OutputProof(proto.inner[..].try_into()?))
+    }
+}
+
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    
+    #[test]
+    fn test_proof_manager_full() -> Result<(), ProofError> {
+        let manager = ProofManager::new()?;
+
+        // Test existing ZKP functionality
+        let input = ProofInput {
+            seed_phrase: "test test test test test test test test test test test junk".to_string(),
+            amount: 1000,
+            asset_id: 1,
+            address_index: 0,
+        };
+
+        // Test proof generation and verification (existing functionality)
+        let proof_result = manager.create_proof(input.clone())?;
+        assert!(manager.verify_proof(proof_result, vec![])?);
+
+        // Test new intent action functionality
+        let intent = manager.create_intent_action(
+            "test test test test test test test test test test test junk".to_string(),
+            "word word word word word word word word word word word word".to_string(),
+            1000,
+            1,
+            0,
+        )?;
+        
+        assert!(manager.verify_intent_action(intent)?);
+
+        Ok(())
+    }
+    
+    #[test]
+    fn test_exact_obligation_flow() -> Result<(), ProofError> {
+        let manager = ProofManager::new()?;
+
+        // Test with exact values from test.rs
+        let intent = manager.create_intent_action(
+            "test test test test test test test test test test test junk".to_string(),
+            "word word word word word word word word word word word word".to_string(),
+            30, // Exact amount from test.rs
+            1,  // TEST_ASSET_ID
+            1,  // Same index as test.rs
+        )?;
+
+        assert!(manager.verify_intent_action(intent)?);
+        Ok(())
     }
 }
