@@ -8,12 +8,6 @@ use penumbra_keys::keys::{Diversifier, SpendKeyBytes};
 use std::sync::{Arc, Mutex};
 
 
-// TODO add 
-// pub extern "system" fn Java_expo_modules_proofmanager_ProofManagerModule_generateKeysNative
-// pub extern "system" fn Java_expo_modules_proofmanager_ProofManagerModule_generateAddressNative
-// pub extern "system" fn Java_expo_modules_proofmanager_ProofManagerModule_createNoteNative
-// pub extern "system" fn Java_expo_modules_proofmanager_ProofManagerModule_signNoteNative
-// pub extern "system" fn Java_expo_modules_proofmanager_ProofManagerModule_verifySignatureNative
 
 // Global ProofManager instance
 static PROOF_MANAGER: Lazy<Mutex<Arc<ProofManager>>> = Lazy::new(|| {
