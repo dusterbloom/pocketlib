@@ -9,8 +9,8 @@ PROJECT_NAME := proofmanager
 LIB_NAME := lib$(PROJECT_NAME)
 
 # Environment Detection
-ANDROID_HOME ?= $(shell echo $$ANDROID_HOME)
-ANDROID_NDK_HOME ?= $(ANDROID_HOME)/ndk/26.3.11579264
+ANDROID_HOME := /Users/msalopek/Library/Android/sdk
+ANDROID_NDK_HOME ?= $(ANDROID_HOME)/ndk/28.0.12916984
 ANDROID_NDK_TOOLCHAIN := $(ANDROID_NDK_HOME)/toolchains/llvm/prebuilt/darwin-x86_64
 
 # Cleaning target directories

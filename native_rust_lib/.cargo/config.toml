@@ -1,12 +1,12 @@
 
 [target.aarch64-linux-android]
-ar = "/Users/peppi/Library/Android/sdk/ndk/26.3.11579264/toolchains/llvm/prebuilt/darwin-x86_64/bin/llvm-ar"
-linker = "/Users/peppi/Library/Android/sdk/ndk/26.3.11579264/toolchains/llvm/prebuilt/darwin-x86_64/bin/aarch64-linux-android21-clang"
+ar = "/Users/msalopek/Library/Android/sdk/ndk/28.0.12916984/toolchains/llvm/prebuilt/darwin-x86_64/bin/llvm-ar"
+linker = "/Users/msalopek/Library/Android/sdk/ndk/28.0.12916984/toolchains/llvm/prebuilt/darwin-x86_64/bin/aarch64-linux-android21-clang"
 
 [env]
-CC_aarch64-linux-android = "/Users/peppi/Library/Android/sdk/ndk/26.3.11579264/toolchains/llvm/prebuilt/darwin-x86_64/bin/aarch64-linux-android21-clang"
-CXX_aarch64-linux-android = "/Users/peppi/Library/Android/sdk/ndk/26.3.11579264/toolchains/llvm/prebuilt/darwin-x86_64/bin/aarch64-linux-android21-clang++"
-AR_aarch64-linux-android = "/Users/peppi/Library/Android/sdk/ndk/26.3.11579264/toolchains/llvm/prebuilt/darwin-x86_64/bin/llvm-ar"
+CC_aarch64-linux-android = "/Users/msalopek/Library/Android/sdk/ndk/28.0.12916984/toolchains/llvm/prebuilt/darwin-x86_64/bin/aarch64-linux-android21-clang"
+CXX_aarch64-linux-android = "/Users/msalopek/Library/Android/sdk/ndk/28.0.12916984/toolchains/llvm/prebuilt/darwin-x86_64/bin/aarch64-linux-android21-clang++"
+AR_aarch64-linux-android = "/Users/msalopek/Library/Android/sdk/ndk/28.0.12916984/toolchains/llvm/prebuilt/darwin-x86_64/bin/llvm-ar"
 
 
 # iOS configuration
@@ -23,12 +23,12 @@ AR_aarch64-linux-android = "/Users/peppi/Library/Android/sdk/ndk/26.3.11579264/t
 # ]
 
 # [target.aarch64-linux-android]
-# ar = "/Users/peppi/Library/Android/sdk/ndk/26.3.11579264/toolchains/llvm/prebuilt/darwin-x86_64/bin/llvm-ar"
-# linker = "/Users/peppi/Library/Android/sdk/ndk/26.3.11579264/toolchains/llvm/prebuilt/darwin-x86_64/bin/aarch64-linux-android21-clang"
+# ar = "/Users/peppi/Library/Android/sdk/ndk/28.0.12916984/toolchains/llvm/prebuilt/darwin-x86_64/bin/llvm-ar"
+# linker = "/Users/peppi/Library/Android/sdk/ndk/28.0.12916984/toolchains/llvm/prebuilt/darwin-x86_64/bin/aarch64-linux-android21-clang"
 
 # [env]
-# CC_aarch64-linux-android = "/Users/peppi/Library/Android/sdk/ndk/26.3.11579264/toolchains/llvm/prebuilt/darwin-x86_64/bin/aarch64-linux-android21-clang"
-# CXX_aarch64-linux-android = "/Users/peppi/Library/Android/sdk/ndk/26.3.11579264/toolchains/llvm/prebuilt/darwin-x86_64/bin/aarch64-linux-android21-clang++"
+# CC_aarch64-linux-android = "/Users/peppi/Library/Android/sdk/ndk/28.0.12916984/toolchains/llvm/prebuilt/darwin-x86_64/bin/aarch64-linux-android21-clang"
+# CXX_aarch64-linux-android = "/Users/peppi/Library/Android/sdk/ndk/28.0.12916984/toolchains/llvm/prebuilt/darwin-x86_64/bin/aarch64-linux-android21-clang++"
 
 
 # [target.aarch64-apple-ios]
