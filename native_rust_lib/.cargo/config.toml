@@ -1,12 +1,12 @@
 
 [target.aarch64-linux-android]
-ar = "/Users/msalopek/Library/Android/sdk/ndk/28.0.12916984/toolchains/llvm/prebuilt/darwin-x86_64/bin/llvm-ar"
-linker = "/Users/msalopek/Library/Android/sdk/ndk/28.0.12916984/toolchains/llvm/prebuilt/darwin-x86_64/bin/aarch64-linux-android21-clang"
+ar = "/Users/senix/Library/Android/sdk/ndk/28.0.12916984/toolchains/llvm/prebuilt/darwin-x86_64/bin/llvm-ar"
+linker = "/Users/senix/Library/Android/sdk/ndk/28.0.12916984/toolchains/llvm/prebuilt/darwin-x86_64/bin/aarch64-linux-android21-clang"
 
 [env]
-CC_aarch64-linux-android = "/Users/msalopek/Library/Android/sdk/ndk/28.0.12916984/toolchains/llvm/prebuilt/darwin-x86_64/bin/aarch64-linux-android21-clang"
-CXX_aarch64-linux-android = "/Users/msalopek/Library/Android/sdk/ndk/28.0.12916984/toolchains/llvm/prebuilt/darwin-x86_64/bin/aarch64-linux-android21-clang++"
-AR_aarch64-linux-android = "/Users/msalopek/Library/Android/sdk/ndk/28.0.12916984/toolchains/llvm/prebuilt/darwin-x86_64/bin/llvm-ar"
+CC_aarch64-linux-android = "/Users/senix/Library/Android/sdk/ndk/28.0.12916984/toolchains/llvm/prebuilt/darwin-x86_64/bin/aarch64-linux-android21-clang"
+CXX_aarch64-linux-android = "/Users/senix/Library/Android/sdk/ndk/28.0.12916984/toolchains/llvm/prebuilt/darwin-x86_64/bin/aarch64-linux-android21-clang++"
+AR_aarch64-linux-android = "/Users/senix/Library/Android/sdk/ndk/28.0.12916984/toolchains/llvm/prebuilt/darwin-x86_64/bin/llvm-ar"
 
 
 # iOS configuration
