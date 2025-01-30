@@ -4,12 +4,30 @@ import ParallaxScrollView from '@/components/ParallaxScrollView';
 import { ThemedText } from '@/components/ThemedText';
 import { ThemedView } from '@/components/ThemedView';
 
-import * as ProofManager from '@/modules/proofmanager'
-import { useEffect, useState } from 'react';
-import { Text } from "react-native";
-import { addressToHex, bytesToHex, convertByteArraysToHex } from '@/utils/hex';
+import { 
+  generateKeys, 
+  generateAddress, 
+  createNote, 
+  signNote, 
+  verifySignature,
+  type AddressData, 
+  type KeyPair, 
+  type Note, 
+  type SignedNote,
+  type NoteCreateParams  
+} from '../../modules/proofmanager/index';
 
-import { AddressData, KeyPair, Note, SignedNote } from '@/modules/proofmanager/src/ProofManager.types';
+import { Text } from "react-native";
+import { bytesToHex } from '@/utils/hex';
+
+import { useEffect, useState } from 'react';
+import React from 'react';
+
+// Debug logging utility
+const debug = (step: string, data: any) => {
+  console.log(`\n[DEBUG] ${step}:`);
+  console.log(JSON.stringify(data, null, 2));
+};
 
 export default function HomeScreen() {
   // Updated state
@@ -37,21 +55,46 @@ export default function HomeScreen() {
   useEffect(() => {
     async function generateAndVerify() {
       try {
+        console.log('\n=== Starting ProofManager Flow ===');
+        
         // Test seed phrases
         const debtorPhrase = 'garage advice weekend this dose mango sign horse tool torch mosquito repeat sentence valid scheme pull punch need prosper build actor say cancel allow';
         const creditorPhrase = 'word word word word word word word word word word word word';
+        
+        debug('Seed Phrases', { debtorPhrase, creditorPhrase });
 
         // Generate keys for debtor
+        console.log('\n[Step 1] Generating Debtor Keys...');
         const startKeyGen = Date.now();
-        const debtorKeys = await ProofManager.generateKeys(debtorPhrase);
+        const debtorKeys = await generateKeys(debtorPhrase);
         const endKeyGen = Date.now();
+        debug('Debtor Keys Generated', debtorKeys);
         setTimings(prev => ({ ...prev, keyGenTime: endKeyGen - startKeyGen }));
 
         // Generate addresses
+        console.log('\n[Step 2] Generating Addresses...');
         const startAddr = Date.now();
-        const debtorAddr = await ProofManager.generateAddress(debtorKeys, 0);
-        const creditorKeys = await ProofManager.generateKeys(creditorPhrase);
-        const creditorAddr = await ProofManager.generateAddress(creditorKeys, 0);
+
+        debug('Calling generateAddress with', {
+          spendKey: debtorKeys.spendKey,
+          index: 0
+        });
+
+        const debtorAddr = await generateAddress({
+          spendKey: debtorKeys.spendKey,
+          index: 0
+        });
+        debug('Debtor Address Generated', debtorAddr);
+
+        const creditorKeys = await generateKeys(creditorPhrase);
+        debug('Creditor Keys Generated', creditorKeys);
+
+        const creditorAddr = await generateAddress({
+          spendKey: creditorKeys.spendKey,
+          index: 0
+        });
+        debug('Creditor Address Generated', creditorAddr);
+        
         const endAddr = Date.now();
         
         setDebtorAddress(debtorAddr);
@@ -59,37 +102,68 @@ export default function HomeScreen() {
         setTimings(prev => ({ ...prev, addressGenTime: endAddr - startAddr }));
 
         // Create note
+        console.log('\n[Step 3] Creating Note...');
         const startNote = Date.now();
-        const newNote = await ProofManager.createNote(
-          debtorAddr,
-          creditorAddr,
-          1000, // amount
-          1     // asset_id
-        );
+        
+        const noteParams = {
+          debtorAddress: debtorAddr,
+          creditorAddress: creditorAddr,
+          amount: 1000,
+          assetId: 1
+        };
+        debug('Creating Note with params', noteParams);
+        
+        const newNote = await createNote(noteParams);
+        debug('Note Created', newNote);
+        
         const endNote = Date.now();
         setNote(newNote);
         setTimings(prev => ({ ...prev, noteCreateTime: endNote - startNote }));
 
         // Sign note
+        console.log('\n[Step 4] Signing Note...');
         const startSign = Date.now();
-        const signed = await ProofManager.signNote(debtorPhrase, newNote);
+        debug('Signing note with params', {
+          seedPhrase: debtorPhrase,
+          note: newNote
+        });
+
+        const signed = await signNote({
+          seedPhrase: debtorPhrase,
+          note: newNote
+        });
+        debug('Note Signed', signed);
+
         const endSign = Date.now();
         setSignedNote(signed);
         setTimings(prev => ({ ...prev, signTime: endSign - startSign }));
 
         // Verify signature
+        console.log('\n[Step 5] Verifying Signature...');
         const startVerify = Date.now();
-        const valid = await ProofManager.verifySignature(
+        
+        debug('Verifying signature with', {
+          verificationKey: signed.verificationKey,
+          commitment: signed.note.commitment,
+          signature: signed.signature
+        });
+        
+        const valid = await verifySignature(
           signed.verificationKey,
           signed.note.commitment,
           signed.signature
         );
+        debug('Signature Verification Result', { valid });
+        
         const endVerify = Date.now();
         setIsValid(valid);
         setTimings(prev => ({ ...prev, verifyTime: endVerify - startVerify }));
 
+        console.log('\n=== ProofManager Flow Completed ===\n');
+
       } catch (err) {
-        console.error('Error:', err);
+        console.error('\n[ERROR] ProofManager Flow Failed:', err);
+        console.error('Error Stack:', err instanceof Error ? err.stack : 'No stack trace');
         setError(err instanceof Error ? err.message : 'Unknown error');
       }
     }
@@ -195,7 +269,6 @@ export default function HomeScreen() {
     </ParallaxScrollView>
   );
 }
-  
 
 const styles = StyleSheet.create({
   titleContainer: {

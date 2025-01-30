@@ -1,4 +1,0 @@
-module proofmanagerFFI {
-    header "proofmanagerFFI.h"
-    export *
-}

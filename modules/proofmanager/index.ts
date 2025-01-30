@@ -1,8 +1,14 @@
-import { requireNativeModule } from 'expo-modules-core';
+import ProofManagerModule from './src/ProofManagerModule';
+import type { 
+  ProofManagerInterface, 
+  KeyPair, 
+  AddressData, 
+  Note, 
+  SignedNote,
+  NoteCreateParams  // Make sure this is added
+} from './src/ProofManager.types';
 
-const ProofManagerModule = requireNativeModule('ProofManager');
-
-export const { 
+export const {
   generateKeys,
   generateAddress,
   createNote,
@@ -11,3 +17,12 @@ export const {
 } = ProofManagerModule;
 
 export default ProofManagerModule;
+
+export type {
+  ProofManagerInterface,
+  KeyPair,
+  AddressData,
+  Note,
+  SignedNote,
+  NoteCreateParams  // Add this export
+};

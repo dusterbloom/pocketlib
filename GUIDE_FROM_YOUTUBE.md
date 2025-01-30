@@ -157,7 +157,10 @@ export default function App() {
 }
 ```
 
-Now we can test and see if it works `npm run iOS`# Android
+Now we can test and see if it works `npm run iOS`
+
+
+# Android
 
 
 # Scripts 
@@ -173,15 +176,28 @@ Important naming convention for Android:Inside the `expo-module-config.json` the
 
 In lib.rs this will be called `Java_expo_module_myrustmodule_MyRustModule_rustAdd` 
 
-Then we need to tell Kotlin how to call the lib and give back the result to Javascript.So Kotlin is inside /modules/my-rust-module/android/src/main/java/expo/modules/myrustmodule/MyRustModule.ktSteps for Kotlin1. Load the library	```	companion object {	
+Then we need to tell Kotlin how to call the lib and give back the result to Javascript.
+So Kotlin is inside /modules/my-rust-module/android/src/main/java/expo/modules/myrustmodule/MyRustModule.kt
+
+Steps for Kotlin
+
+1. Load the library	
+
+
+```kt	
+companion object {	
 		init {
 			System.loadLibrary(“native_rust_lib”)
-		}	}	```
+		}	}	
+		
+```
 		
 Next define the functions: 
 
 ``` 
-external fun rustAdd (a: Int, b: Int): Int```
+external fun rustAdd (a: Int, b: Int): Int
+```
+
 
 ```
 AsyncFunction(“rustAdd”) { a: Int, b: Int ->	rustAdd(a,b)

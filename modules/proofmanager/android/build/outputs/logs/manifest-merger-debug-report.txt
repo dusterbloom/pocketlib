@@ -1,14 +1,16 @@
 -- Merging decision tree log ---
 manifest
-ADDED from /Users/peppi/Dev/pocket/modules/proofmanager/android/src/main/AndroidManifest.xml:1:1-2:12
-INJECTED from /Users/peppi/Dev/pocket/modules/proofmanager/android/src/main/AndroidManifest.xml:1:1-2:12
+ADDED from /Users/peppi/Dev/pocketlib/modules/proofmanager/android/build/intermediates/tmp/ProcessLibraryManifest/debug/tempAndroidManifest17905160993773378439.xml:2:13-83
+INJECTED from /Users/peppi/Dev/pocketlib/modules/proofmanager/android/build/intermediates/tmp/ProcessLibraryManifest/debug/tempAndroidManifest17905160993773378439.xml:2:13-83
 	package
-		INJECTED from /Users/peppi/Dev/pocket/modules/proofmanager/android/src/main/AndroidManifest.xml
+		INJECTED from /Users/peppi/Dev/pocketlib/modules/proofmanager/android/build/intermediates/tmp/ProcessLibraryManifest/debug/tempAndroidManifest17905160993773378439.xml
+	xmlns:android
+		ADDED from /Users/peppi/Dev/pocketlib/modules/proofmanager/android/build/intermediates/tmp/ProcessLibraryManifest/debug/tempAndroidManifest17905160993773378439.xml:2:23-81
 uses-sdk
-INJECTED from /Users/peppi/Dev/pocket/modules/proofmanager/android/src/main/AndroidManifest.xml reason: use-sdk injection requested
-INJECTED from /Users/peppi/Dev/pocket/modules/proofmanager/android/src/main/AndroidManifest.xml
-INJECTED from /Users/peppi/Dev/pocket/modules/proofmanager/android/src/main/AndroidManifest.xml
+INJECTED from /Users/peppi/Dev/pocketlib/modules/proofmanager/android/build/intermediates/tmp/ProcessLibraryManifest/debug/tempAndroidManifest17905160993773378439.xml reason: use-sdk injection requested
+INJECTED from /Users/peppi/Dev/pocketlib/modules/proofmanager/android/build/intermediates/tmp/ProcessLibraryManifest/debug/tempAndroidManifest17905160993773378439.xml
+INJECTED from /Users/peppi/Dev/pocketlib/modules/proofmanager/android/build/intermediates/tmp/ProcessLibraryManifest/debug/tempAndroidManifest17905160993773378439.xml
 	android:targetSdkVersion
-		INJECTED from /Users/peppi/Dev/pocket/modules/proofmanager/android/src/main/AndroidManifest.xml
+		INJECTED from /Users/peppi/Dev/pocketlib/modules/proofmanager/android/build/intermediates/tmp/ProcessLibraryManifest/debug/tempAndroidManifest17905160993773378439.xml
 	android:minSdkVersion
-		INJECTED from /Users/peppi/Dev/pocket/modules/proofmanager/android/src/main/AndroidManifest.xml
+		INJECTED from /Users/peppi/Dev/pocketlib/modules/proofmanager/android/build/intermediates/tmp/ProcessLibraryManifest/debug/tempAndroidManifest17905160993773378439.xml

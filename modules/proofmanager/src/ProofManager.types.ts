@@ -1,45 +1,60 @@
 // ProofManager.types.ts
-export interface ProofInput {
-  seedPhrase: string;
-  amount: number;
-  assetId: number;
-  addressIndex: number;
-}
-
-export interface ProofResult {
-  proof: number[];
-  commitment: number[];
-}
-
-export interface AddressInfo {
+export interface AddressData {
   diversifier: number[];
   transmissionKey: number[];
   clueKey: number[];
 }
 
-export interface IntentAction {
-  noteCommitment: number[];
-  authSig: number[];
-  rk: number[];
-  zkp: number[];
-  noteCiphertext: number[];
-  auxCiphertext: number[];
+export interface KeyPair {
+  spendKey: number[];
+  viewKey: number[];
 }
 
+export interface Note {
+  debtorAddress: AddressData;
+  creditorAddress: AddressData;
+  amount: number;
+  assetId: number;
+  commitment: number[];
+}
+
+export interface NoteCreateParams {
+  debtorAddress: AddressData;
+  creditorAddress: AddressData;
+  amount: number;
+  assetId: number;
+}
+
+export interface GenerateAddressParams {
+  spendKey: number[];
+  index: number;
+}
+
+export interface SignedNote {
+  note: Note;
+  signature: number[];
+  verificationKey: number[];
+}
+
+export interface SignNoteParams {
+  seedPhrase: string;
+  note: Note;
+}
+
+
 export interface ProofManagerInterface {
-  createProof(input: ProofInput): Promise<ProofResult>;
-  verifyProof(proof: number[], commitment: number[]): Promise<boolean>;
-  generateAddress(seedPhrase: string, index: number): Promise<AddressInfo>;
+  // Key and Address Generation
+  generateKeys(seedPhrase: string): Promise<KeyPair>;
+  generateAddress(params: GenerateAddressParams): Promise<AddressData>;
 
-  createIntentAction(
-    seedPhrase: string,
-    amount: number,
-    assetId: number,
-    addressIndex: number,
-    creditorAddress: AddressInfo
-): Promise<IntentAction>;
+  // Note Operations
+  createNote(params: NoteCreateParams): Promise<Note>;
 
-    verifyIntentAction(
-        action: IntentAction
-    ): Promise<boolean>;
+  // Signature Operations
+  signNote(params: SignNoteParams): Promise<SignedNote>;
+  verifySignature(
+    verificationKeyBytes: number[],
+    commitment: number[],
+    signature: number[]
+  ): Promise<boolean>;
 }

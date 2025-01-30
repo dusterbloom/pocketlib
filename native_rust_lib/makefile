@@ -45,6 +45,7 @@ ANDROID_API := 21
 ANDROID_ABI_DIR := $(ANDROID_OUTPUT_DIR)/jniLibs/arm64-v8a
 ANDROID_KOTLIN_DIR := $(ANDROID_OUTPUT_DIR)/uniffi/proofmanager
 
+
 # Terminal Colors
 BOLD := $(shell tput bold)
 GREEN := $(shell tput setaf 2)
@@ -127,11 +128,11 @@ android-build:
 	cargo build --target $(ANDROID_TARGET) --release 
 	
 	@echo "→ Generating Kotlin bindings..."
-	@mkdir -p $(ANDROID_BINDINGS_DIR)
+	@mkdir -p $(BINDINGS_DIR)
 	@cargo run --features=uniffi/cli --bin uniffi-bindgen generate \
-    --library ./target/$(ANDROID_TARGET)/release/$(LIB_NAME).so \
-    --language kotlin \
-    --out-dir $(ANDROID_BINDINGS_DIR)
+		--library ./target/$(ANDROID_TARGET)/release/$(LIB_NAME).so \
+		--language kotlin \
+		--out-dir $(BINDINGS_DIR)
 
 
 android-copy:
@@ -139,10 +140,10 @@ android-copy:
 	@mkdir -p $(ANDROID_ABI_DIR)
 	@mkdir -p $(ANDROID_KOTLIN_DIR)
 	@cp ./target/$(ANDROID_TARGET)/release/$(LIB_NAME).so $(ANDROID_ABI_DIR)/
-	@if [ -f "$(ANDROID_BINDINGS_DIR)/uniffi/$(PROJECT_NAME)/$(PROJECT_NAME).kt" ]; then \
-		cp $(ANDROID_BINDINGS_DIR)/uniffi/$(PROJECT_NAME)/$(PROJECT_NAME).kt $(ANDROID_KOTLIN_DIR)/; \
+	@if [ -f "$(BINDINGS_DIR)/uniffi/$(PROJECT_NAME)/$(PROJECT_NAME).kt" ]; then \
+		cp $(BINDINGS_DIR)/uniffi/$(PROJECT_NAME)/$(PROJECT_NAME).kt $(ANDROID_KOTLIN_DIR)/; \
 	else \
-		echo "$(YELLOW)Warning: proofmanager.kt not found in $(ANDROID_BINDINGS_DIR)$(RESET)"; \
+		echo "$(YELLOW)Warning: proofmanager.kt not found in $(BINDINGS_DIR)$(RESET)"; \
 		exit 1; \
 	fi
 	@echo "$(GREEN)✓ Android artifacts copied$(RESET)"

@@ -2,17 +2,15 @@ package expo.modules.proofmanager
 
 import expo.modules.kotlin.modules.Module
 import expo.modules.kotlin.modules.ModuleDefinition
+import expo.modules.kotlin.Promise
 
 class ProofManagerModule : Module() {
+    
+    // Adding our library
     companion object {
         init {
             try {
-                // Try both possible library names
-                try {
-                    System.loadLibrary("proofmanager")
-                } catch (e: UnsatisfiedLinkError) {
-                    System.loadLibrary("native_rust_lib")
-                }
+                System.loadLibrary("proofmanager")
                 println("Successfully loaded native library")
             } catch (e: UnsatisfiedLinkError) {
                 println("Failed to load native library: ${e.message}")
@@ -21,86 +19,180 @@ class ProofManagerModule : Module() {
         }
     }
 
-    // Native function declarations - need to be at class level
-    private external fun createProofNative(
-        seedPhrase: String,
-        amount: Long,
-        assetId: Long,
-        addressIndex: Int
+    // Native function declarations matching Rust implementations
+    private external fun generateKeysNative(seedPhrase: String): Map<String, ByteArray>
+    
+    private external fun generateAddressNative(
+        spendKey: ByteArray,
+        index: Int
     ): Map<String, ByteArray>
 
+    private external fun createNoteNative(
+        debtorAddress: Map<String, ByteArray>,
+        creditorAddress: Map<String, ByteArray>,
+        amount: Long,
+        assetId: Long
+    ): Map<String, ByteArray>
 
-    private external fun verifyProofNative(proof: ByteArray, commitment: ByteArray): Boolean
+    private external fun signNoteNative(
+        seedPhrase: String,
+        note: Map<String, Any>
+    ): Map<String, ByteArray>
 
-    private external fun generateAddressNative(seedPhrase: String, index: Int): Map<String, ByteArray>
+    private external fun verifySignatureNative(
+        verificationKey: ByteArray,
+        commitment: ByteArray,
+        signature: ByteArray
+    ): Boolean
 
     override fun definition() = ModuleDefinition {
         Name("ProofManager")
 
-        AsyncFunction("createProof") { input: Map<String, Any> ->
-        try {
-            val result = createProofNative(
-                seedPhrase = input["seedPhrase"] as String,
-                amount = (input["amount"] as Number).toLong(),
-                assetId = (input["assetId"] as Number).toLong(),
-                addressIndex = (input["addressIndex"] as Number).toInt()
-            )
-        
-            mapOf(
-                "proof" to result["proof"]?.map { it.toInt() and 0xFF },
-                "commitment" to result["commitment"]?.map { it.toInt() and 0xFF }
-            )
+        AsyncFunction("generateKeys") { seedPhrase: String, promise: Promise ->
+            try {
+                val result = generateKeysNative(seedPhrase)
+                promise.resolve(mapOf(
+                    "spendKey" to (result["spendKey"]?.map { it.toInt() and 0xFF } ?: listOf()),
+                    "viewKey" to (result["viewKey"]?.map { it.toInt() and 0xFF } ?: listOf())
+                ))
             } catch (e: Exception) {
-                throw Error("Failed to create proof: ${e.message}")
+                promise.reject("PROOF_ERROR", e.message, e)
             }
         }
 
-        AsyncFunction("verifyProof") { proof: List<Int>, commitment: List<Int> ->
+        AsyncFunction("generateAddress") { args: Map<String, Any>, promise: Promise ->
             try {
-                println("Kotlin: Verifying proof of length=${proof.size}")
-                
-                // Add null checks and validation
-                if (proof.isEmpty()) {
-                    throw Error("Proof data cannot be empty")
-                }
-                if (commitment.isEmpty()) {
-                    throw Error("Commitment data cannot be empty")
-                }
-                
-                // Safely convert the lists to byte arrays with null checking
-                val proofBytes = proof.mapNotNull { value -> 
-                    value?.toByte()
-                }.toByteArray()
-                
-                val commitmentBytes = commitment.mapNotNull { value ->
-                    value?.toByte()
-                }.toByteArray()
-                
-                println("Kotlin: Converting proof (${proofBytes.size} bytes) and commitment (${commitmentBytes.size} bytes)")
-                
-                val result = verifyProofNative(proofBytes, commitmentBytes)
-                println("Kotlin: Verification result: $result")
-                result
+                val spendKey = (args["spendKey"] as? List<Int>)?.map { it.toByte() }?.toByteArray()
+                    ?: throw IllegalArgumentException("Invalid spendKey")
+                val index = (args["index"] as? Number)?.toInt()
+                    ?: throw IllegalArgumentException("Invalid index")
+
+                val result = generateAddressNative(spendKey, index)
+                promise.resolve(mapOf(
+                    "diversifier" to (result["diversifier"]?.map { it.toInt() and 0xFF } ?: listOf()),
+                    "transmissionKey" to (result["transmissionKey"]?.map { it.toInt() and 0xFF } ?: listOf()),
+                    "clueKey" to (result["clueKey"]?.map { it.toInt() and 0xFF } ?: listOf())
+                ))
             } catch (e: Exception) {
-                println("Kotlin: Error in verifyProof: ${e.message}")
-                e.printStackTrace()
-                throw Error("Failed to verify proof: ${e.message}")
+                promise.reject("PROOF_ERROR", e.message, e)
             }
         }
 
-        AsyncFunction("generateAddress") { seedPhrase: String, index: Int ->
+        AsyncFunction("createNote") { args: Map<String, Any>, promise: Promise ->
             try {
-                println("Kotlin: Generating address for index=$index")
-                val addressInfo = generateAddressNative(seedPhrase, index)
-                mapOf(
-                    "diversifier" to addressInfo["diversifier"]?.map { it.toInt() and 0xFF },
-                    "transmissionKey" to addressInfo["transmissionKey"]?.map { it.toInt() and 0xFF },
-                    "clueKey" to addressInfo["clueKey"]?.map { it.toInt() and 0xFF }
-                ).also { println("Kotlin: Generated address info: $it") }
+                fun convertAddress(address: Map<*, *>): Map<String, ByteArray> {
+                    return mapOf(
+                        "diversifier" to ((address["diversifier"] as? List<Int>)?.map { it.toByte() }?.toByteArray()
+                            ?: throw IllegalArgumentException("Invalid diversifier")),
+                        "transmissionKey" to ((address["transmissionKey"] as? List<Int>)?.map { it.toByte() }?.toByteArray()
+                            ?: throw IllegalArgumentException("Invalid transmissionKey")),
+                        "clueKey" to ((address["clueKey"] as? List<Int>)?.map { it.toByte() }?.toByteArray()
+                            ?: throw IllegalArgumentException("Invalid clueKey"))
+                    )
+                }
+
+                val debtorAddress = (args["debtorAddress"] as? Map<*, *>)?.let { convertAddress(it) }
+                    ?: throw IllegalArgumentException("Invalid debtorAddress")
+                val creditorAddress = (args["creditorAddress"] as? Map<*, *>)?.let { convertAddress(it) }
+                    ?: throw IllegalArgumentException("Invalid creditorAddress")
+                val amount = (args["amount"] as? Number)?.toLong()
+                    ?: throw IllegalArgumentException("Invalid amount")
+                val assetId = (args["assetId"] as? Number)?.toLong()
+                    ?: throw IllegalArgumentException("Invalid assetId")
+
+                val result = createNoteNative(debtorAddress, creditorAddress, amount, assetId)
+                promise.resolve(mapOf(
+                    "commitment" to (result["commitment"]?.map { it.toInt() and 0xFF } ?: listOf()),
+                    "debtorAddress" to mapOf(
+                        "diversifier" to (result["debtorDiversifier"]?.map { it.toInt() and 0xFF } ?: listOf()),
+                        "transmissionKey" to (result["debtorTransmissionKey"]?.map { it.toInt() and 0xFF } ?: listOf()),
+                        "clueKey" to (result["debtorClueKey"]?.map { it.toInt() and 0xFF } ?: listOf())
+                    ),
+                    "creditorAddress" to mapOf(
+                        "diversifier" to (result["creditorDiversifier"]?.map { it.toInt() and 0xFF } ?: listOf()),
+                        "transmissionKey" to (result["creditorTransmissionKey"]?.map { it.toInt() and 0xFF } ?: listOf()),
+                        "clueKey" to (result["creditorClueKey"]?.map { it.toInt() and 0xFF } ?: listOf())
+                    )
+                ))
             } catch (e: Exception) {
-                println("Kotlin: Error in generateAddress: ${e.message}")
+                promise.reject("PROOF_ERROR", e.message, e)
+            }
+        }
+
+        AsyncFunction("signNote") { args: Map<String, Any>, promise: Promise ->
+            try {
+                val seedPhrase = args["seedPhrase"] as? String
+                    ?: throw IllegalArgumentException("Invalid seedPhrase")
+                    
+                val noteMap = args["note"] as? Map<String, Any>
+                    ?: throw IllegalArgumentException("Invalid note structure")
+                
+                // Debug logging
+                println("Received note structure: ${noteMap.keys}")
+                
+                // Extract commitment
+                val commitment = (noteMap["commitment"] as? List<Int>)?.map { it.toByte() }?.toByteArray()
+                    ?: throw IllegalArgumentException("Invalid commitment in note")
+
+                // Extract debtor address
+                val debtorAddress = (noteMap["debtorAddress"] as? Map<*, *>)?.let { addr ->
+                    mapOf(
+                        "diversifier" to ((addr["diversifier"] as? List<Int>)?.map { it.toByte() }?.toByteArray()
+                            ?: throw IllegalArgumentException("Invalid debtor diversifier")),
+                        "transmissionKey" to ((addr["transmissionKey"] as? List<Int>)?.map { it.toByte() }?.toByteArray()
+                            ?: throw IllegalArgumentException("Invalid debtor transmissionKey")),
+                        "clueKey" to ((addr["clueKey"] as? List<Int>)?.map { it.toByte() }?.toByteArray()
+                            ?: throw IllegalArgumentException("Invalid debtor clueKey"))
+                    )
+                } ?: throw IllegalArgumentException("Invalid debtorAddress structure")
+
+                // Extract creditor address
+                val creditorAddress = (noteMap["creditorAddress"] as? Map<*, *>)?.let { addr ->
+                    mapOf(
+                        "diversifier" to ((addr["diversifier"] as? List<Int>)?.map { it.toByte() }?.toByteArray()
+                            ?: throw IllegalArgumentException("Invalid creditor diversifier")),
+                        "transmissionKey" to ((addr["transmissionKey"] as? List<Int>)?.map { it.toByte() }?.toByteArray()
+                            ?: throw IllegalArgumentException("Invalid creditor transmissionKey")),
+                        "clueKey" to ((addr["clueKey"] as? List<Int>)?.map { it.toByte() }?.toByteArray()
+                            ?: throw IllegalArgumentException("Invalid creditor clueKey"))
+                    )
+                } ?: throw IllegalArgumentException("Invalid creditorAddress structure")
+
+                // Construct the note map for native call
+                val processedNote = mapOf(
+                    "commitment" to commitment,
+                    "debtorAddress" to debtorAddress,
+                    "creditorAddress" to creditorAddress
+                )
+
+                println("Calling signNoteNative...")
+                val result = signNoteNative(seedPhrase, processedNote)
+                println("signNoteNative returned successfully")
+
+                promise.resolve(mapOf(
+                    "signature" to (result["signature"]?.map { it.toInt() and 0xFF } ?: listOf()),
+                    "verificationKey" to (result["verificationKey"]?.map { it.toInt() and 0xFF } ?: listOf())
+                ))
+            } catch (e: Exception) {
+                println("Error in signNote: ${e.message}")
                 e.printStackTrace()
-                throw Error("Failed to generate address: ${e.message}")
+                promise.reject("PROOF_ERROR", "Sign note failed: ${e.message}", e)
+            }
+        }
+
+        AsyncFunction("verifySignature") { args: Map<String, Any>, promise: Promise ->
+            try {
+                val verificationKey = (args["verificationKey"] as? List<Int>)?.map { it.toByte() }?.toByteArray()
+                    ?: throw IllegalArgumentException("Invalid verificationKey")
+                val commitment = (args["commitment"] as? List<Int>)?.map { it.toByte() }?.toByteArray()
+                    ?: throw IllegalArgumentException("Invalid commitment")
+                val signature = (args["signature"] as? List<Int>)?.map { it.toByte() }?.toByteArray()
+                    ?: throw IllegalArgumentException("Invalid signature")
+
+                val result = verifySignatureNative(verificationKey, commitment, signature)
+                promise.resolve(result)
+            } catch (e: Exception) {
+                promise.reject("PROOF_ERROR", e.message, e)
             }
         }
     }
