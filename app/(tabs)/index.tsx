@@ -1,20 +1,20 @@
-import { Image, StyleSheet, Platform } from 'react-native';
+import { Image, StyleSheet, Platform, View, TextInput } from 'react-native';
 import { HelloWave } from '@/components/HelloWave';
 import ParallaxScrollView from '@/components/ParallaxScrollView';
 import { ThemedText } from '@/components/ThemedText';
 import { ThemedView } from '@/components/ThemedView';
 
-import { 
-  generateKeys, 
-  generateAddress, 
-  createNote, 
-  signNote, 
+import {
+  generateKeys,
+  generateAddress,
+  createNote,
+  signNote,
   verifySignature,
-  type AddressData, 
-  type KeyPair, 
-  type Note, 
+  type AddressData,
+  type KeyPair,
+  type Note,
   type SignedNote,
-  type NoteCreateParams  
+  type NoteCreateParams
 } from '../../modules/proofmanager/index';
 
 import { Text } from "react-native";
@@ -37,7 +37,10 @@ export default function HomeScreen() {
   const [signedNote, setSignedNote] = useState<SignedNote | null>(null);
   const [isValid, setIsValid] = useState<boolean | null>(null);
   const [error, setError] = useState<string | null>(null);
-  
+
+  const [amount, setAmount] = useState<string>('1000');
+  const [assetId, setAssetId] = useState<string>('1');
+
   const [timings, setTimings] = useState<{
     keyGenTime: number | null;
     addressGenTime: number | null;
@@ -56,11 +59,11 @@ export default function HomeScreen() {
     async function generateAndVerify() {
       try {
         console.log('\n=== Starting ProofManager Flow ===');
-        
+
         // Test seed phrases
         const debtorPhrase = 'garage advice weekend this dose mango sign horse tool torch mosquito repeat sentence valid scheme pull punch need prosper build actor say cancel allow';
         const creditorPhrase = 'word word word word word word word word word word word word';
-        
+
         // debug('Seed Phrases', { debtorPhrase, creditorPhrase });
 
         // Generate keys for debtor
@@ -94,9 +97,9 @@ export default function HomeScreen() {
           index: 0
         });
         // debug('Creditor Address Generated', creditorAddr);
-        
+
         const endAddr = Date.now();
-        
+
         setDebtorAddress(debtorAddr);
         setCreditorAddress(creditorAddr);
         setTimings(prev => ({ ...prev, addressGenTime: endAddr - startAddr }));
@@ -104,18 +107,18 @@ export default function HomeScreen() {
         // Create note
         console.log('\n[Step 3] Creating Note...');
         const startNote = Date.now();
-        
+
         const noteParams = {
           debtorAddress: debtorAddr,
           creditorAddress: creditorAddr,
-          amount: 1000,
-          assetId: 1
+          amount: parseInt(amount),
+          assetId: parseInt(assetId)
         };
         // debug('Creating Note with params', noteParams);
-        
+
         const newNote = await createNote(noteParams);
         debug('Note Created', newNote);
-        
+
         const endNote = Date.now();
         setNote(newNote);
         setTimings(prev => ({ ...prev, noteCreateTime: endNote - startNote }));
@@ -168,27 +171,7 @@ export default function HomeScreen() {
           setError(`Verification failed: ${err.message}`);
         }
 
-        // console.log('\n[Step 5] Verifying Signature...');
-        // const startVerify = Date.now();
 
-        // if (!signed.verificationKey || !signed.signature || !signed.note?.commitment) {
-        //   throw new Error('Missing required signature components');
-        // }
-
-        // // Pass parameters as expected by the Kotlin module
-        // const valid = await verifySignature({
-          
-        //     verificationKey: signed.verificationKey,
-        //     commitment: signed.note.commitment,
-        //     signature: signed.signature
-          
-        // });
-
-        // console.log('Verification result:', valid);
-
-        // const endVerify = Date.now();
-        // setIsValid(valid);
-        // setTimings(prev => ({ ...prev, verifyTime: endVerify - startVerify }));
 
         console.log('\n=== ProofManager Flow Completed ===\n');
 
@@ -200,7 +183,7 @@ export default function HomeScreen() {
     }
 
     generateAndVerify();
-  }, []);
+  }, [amount, assetId]);
 
   return (
     <ParallaxScrollView
@@ -231,11 +214,32 @@ export default function HomeScreen() {
 
       {/* Note Section */}
       <ThemedView style={styles.stepContainer}>
+        <ThemedText type="subtitle">Note Parameters</ThemedText>
+        <View style={styles.inputContainer}>
+          <Text>Amount: </Text>
+          <TextInput
+            value={amount}
+            onChangeText={setAmount}
+            keyboardType="numeric"
+            style={styles.input}
+          />
+        </View>
+        <View style={styles.inputContainer}>
+          <Text>Asset ID: </Text>
+          <TextInput
+            value={assetId}
+            onChangeText={setAssetId}
+            keyboardType="numeric"
+            style={styles.input}
+          />
+        </View>
+      </ThemedView>
+      <ThemedView style={styles.stepContainer}>
         <ThemedText type="subtitle">Note Creation Results</ThemedText>
         {note && (
           <>
-            <Text>Amount: {note.amount}</Text>
-            <Text>Asset ID: {note.assetId}</Text>
+            <Text>Amount: {amount}</Text>
+            <Text>Asset ID: {assetId}</Text>
             <Text>Commitment: {bytesToHex(note.commitment)}</Text>
           </>
         )}

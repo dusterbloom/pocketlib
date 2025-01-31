@@ -16,6 +16,9 @@ use jni::objects::{JClass, JString, JObject, JValue, JByteArray};
 use jni::sys::{jlong, jint, jboolean, jobject};
 use once_cell::sync::Lazy;
 use penumbra_keys::keys::{Diversifier, SpendKeyBytes};
+use penumbra_asset::{asset, Value};
+use penumbra_num::Amount;
+
 use std::clone;
 use std::sync::{Arc, Mutex};
 
@@ -154,7 +157,6 @@ pub extern "system" fn Java_expo_modules_proofmanager_ProofManagerModule_createN
                 &[JValue::Object(&j_key.into())]
             )?.l()?;
             
-    
             // Convert to JByteArray first
             let byte_array = JByteArray::from(bytes);
             env.convert_byte_array(&byte_array)
@@ -173,12 +175,49 @@ pub extern "system" fn Java_expo_modules_proofmanager_ProofManagerModule_createN
         let creditor = get_address_data(creditor_address)
             .map_err(|_| ProofError::InvalidKey)?;
 
-        PROOF_MANAGER.lock().unwrap().create_note(
-            debtor,
-            creditor,
-            amount as u64,
-            asset_id as u64,
-        )
+        // Convert raw addresses to Penumbra Address type
+        let debtor_addr = Address::from_components(
+            Diversifier(debtor.diversifier.clone().try_into().map_err(|_| ProofError::InvalidKey)?),
+            ka::Public(debtor.transmission_key.clone().try_into().map_err(|_| ProofError::InvalidKey)?),
+            fmd::ClueKey(debtor.clue_key.clone().try_into().map_err(|_| ProofError::InvalidKey)?),
+        ).ok_or_else(|| ProofError::InvalidKey)?;
+
+        let creditor_addr = Address::from_components(
+            Diversifier(creditor.diversifier.clone().try_into().map_err(|_| ProofError::InvalidKey)?),
+            ka::Public(creditor.transmission_key.clone().try_into().map_err(|_| ProofError::InvalidKey)?),
+            fmd::ClueKey(creditor.clue_key.clone().try_into().map_err(|_| ProofError::InvalidKey)?),
+        ).ok_or_else(|| ProofError::InvalidKey)?;
+
+        // Create Value with amount and asset_id
+        let value = Value {
+            amount: Amount::from(amount as u64),
+            asset_id: asset::Id(Fq::from(asset_id as u64)),
+        };
+
+        // Generate random rseed
+        let mut rng = rand::thread_rng();
+        let mut rseed_bytes = [0u8; 32];
+        rng.fill_bytes(&mut rseed_bytes);
+
+        // Create the note using the Note::from_parts constructor
+        let note = crate::note::Note::from_parts(
+            debtor_addr,
+            creditor_addr,
+            value,
+            Rseed(rseed_bytes),
+        ).map_err(|e| ProofError::NoteError(e.to_string()))?;
+
+        // Get the commitment
+        let commitment = note.commit().0.to_bytes();
+
+        // Return the note data in our FFI-friendly format
+        Ok(Note {
+            debtor_address: debtor,
+            creditor_address: creditor,
+            amount: amount as u64,
+            asset_id: asset_id as u64,
+            commitment: commitment.to_vec(),
+        })
     })();
 
     match result {
@@ -228,6 +267,102 @@ pub extern "system" fn Java_expo_modules_proofmanager_ProofManagerModule_createN
         }
     }
 }
+
+
+// #[no_mangle]
+// pub extern "system" fn Java_expo_modules_proofmanager_ProofManagerModule_createNoteNative<'local>(
+//     mut env: JNIEnv<'local>,
+//     _class: JClass<'local>,
+//     debtor_address: JObject<'local>,
+//     creditor_address: JObject<'local>,
+//     amount: jlong,
+//     asset_id: jlong,
+// ) -> jobject {
+//     // Helper function to get address data from Java HashMap
+//     let mut get_address_data = |addr_obj: JObject| -> Result<AddressData, jni::errors::Error> {
+//         let mut get_bytes = |key: &str| -> Result<Vec<u8>, jni::errors::Error> {
+//             let j_key = env.new_string(key)?;
+//             let bytes = env.call_method(
+//                 &addr_obj,
+//                 "get",
+//                 "(Ljava/lang/Object;)Ljava/lang/Object;",
+//                 &[JValue::Object(&j_key.into())]
+//             )?.l()?;
+            
+    
+//             // Convert to JByteArray first
+//             let byte_array = JByteArray::from(bytes);
+//             env.convert_byte_array(&byte_array)
+//         };
+
+//         Ok(AddressData {
+//             diversifier: get_bytes("diversifier")?,
+//             transmission_key: get_bytes("transmissionKey")?,
+//             clue_key: get_bytes("clueKey")?,
+//         })
+//     };
+
+//     let result = (|| -> Result<Note, ProofError> {
+//         let debtor = get_address_data(debtor_address)
+//             .map_err(|_| ProofError::InvalidKey)?;
+//         let creditor = get_address_data(creditor_address)
+//             .map_err(|_| ProofError::InvalidKey)?;
+
+//         PROOF_MANAGER.lock().unwrap().create_note(
+//             debtor,
+//             creditor,
+//             amount as u64,
+//             asset_id as u64,
+//         )
+//     })();
+
+//     match result {
+//         Ok(note) => {
+//             let hash_map_class = env.find_class("java/util/HashMap")
+//                 .expect("Failed to find HashMap class");
+//             let hash_map = env.new_object(hash_map_class, "()V", &[])
+//                 .expect("Failed to create HashMap");
+
+//             let mut put_bytes = |key: &str, bytes: &[u8]| {
+//                 let j_key = env.new_string(key)
+//                     .expect("Failed to create string");
+//                 let j_value = env.byte_array_from_slice(bytes)
+//                     .expect("Failed to create byte array");
+
+//                 env.call_method(
+//                     &hash_map,
+//                     "put",
+//                     "(Ljava/lang/Object;Ljava/lang/Object;)Ljava/lang/Object;",
+//                     &[JValue::Object(&j_key.into()), JValue::Object(&j_value.into())]
+//                 ).expect("Failed to call put");
+//             };
+
+//             // Add note data to HashMap
+//             put_bytes("commitment", &note.commitment);
+            
+//             // Add addresses
+//             let mut put_address = |prefix: &str, addr: &AddressData| {
+//                 put_bytes(&format!("{}Diversifier", prefix), &addr.diversifier);
+//                 put_bytes(&format!("{}TransmissionKey", prefix), &addr.transmission_key);
+//                 put_bytes(&format!("{}ClueKey", prefix), &addr.clue_key);
+//             };
+
+//             put_address("debtor", &note.debtor_address);
+//             put_address("creditor", &note.creditor_address);
+
+//             hash_map.into_raw()
+//         },
+//         Err(e) => {
+//             env.throw_new("java/lang/Exception", e.to_string())
+//                 .expect("Failed to throw exception");
+//             let hash_map_class = env.find_class("java/util/HashMap")
+//                 .expect("Failed to find HashMap class");
+//             env.new_object(hash_map_class, "()V", &[])
+//                 .expect("Failed to create empty HashMap")
+//                 .into_raw()
+//         }
+//     }
+// }
 
 
 
@@ -546,8 +681,6 @@ use penumbra_keys::{
     keys::{Bip44Path, SeedPhrase, SpendKey},
     Address,
 };
-use penumbra_asset::{asset, Value};
-use penumbra_num::Amount;
 use penumbra_shielded_pool::Rseed;
 use decaf377_ka as ka;
 use decaf377_fmd as fmd;
