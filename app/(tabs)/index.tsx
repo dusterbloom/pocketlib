@@ -238,8 +238,6 @@ export default function HomeScreen() {
         <ThemedText type="subtitle">Note Creation Results</ThemedText>
         {note && (
           <>
-            <Text>Amount: {amount}</Text>
-            <Text>Asset ID: {assetId}</Text>
             <Text>Commitment: {bytesToHex(note.commitment)}</Text>
           </>
         )}
