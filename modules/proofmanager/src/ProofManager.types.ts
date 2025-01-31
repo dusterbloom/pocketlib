@@ -41,6 +41,12 @@ export interface SignNoteParams {
   note: Note;
 }
 
+export interface VerifySignatureParams {
+  verificationKey: number[];
+  commitment: number[];
+  signature: number[];
+}
+
 
 export interface ProofManagerInterface {
   // Key and Address Generation
@@ -50,11 +56,7 @@ export interface ProofManagerInterface {
   // Note Operations
   createNote(params: NoteCreateParams): Promise<Note>;
 
-  // Signature Operations
-  signNote(params: SignNoteParams): Promise<SignedNote>;
-  verifySignature(
-    verificationKeyBytes: number[],
-    commitment: number[],
-    signature: number[]
-  ): Promise<boolean>;
+ // Signature Operations
+ signNote(params: SignNoteParams): Promise<SignedNote>;
+ verifySignature(params: VerifySignatureParams): Promise<boolean>;
 }

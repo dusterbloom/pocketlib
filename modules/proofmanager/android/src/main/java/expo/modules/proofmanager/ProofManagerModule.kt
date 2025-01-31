@@ -36,9 +36,9 @@ class ProofManagerModule : Module() {
 
     private external fun signNoteNative(
         seedPhrase: String,
-        note: Map<String, Any>
+        note: Map<String, ByteArray>
     ): Map<String, ByteArray>
-
+    
     private external fun verifySignatureNative(
         verificationKey: ByteArray,
         commitment: ByteArray,
@@ -127,51 +127,61 @@ class ProofManagerModule : Module() {
                 val noteMap = args["note"] as? Map<String, Any>
                     ?: throw IllegalArgumentException("Invalid note structure")
                 
-                // Debug logging
-                println("Received note structure: ${noteMap.keys}")
+                // Convert the input note to the format expected by native code
+                val processedNote = mutableMapOf<String, ByteArray>()
                 
                 // Extract commitment
                 val commitment = (noteMap["commitment"] as? List<Int>)?.map { it.toByte() }?.toByteArray()
                     ?: throw IllegalArgumentException("Invalid commitment in note")
+                processedNote["commitment"] = commitment
 
                 // Extract debtor address
-                val debtorAddress = (noteMap["debtorAddress"] as? Map<*, *>)?.let { addr ->
-                    mapOf(
-                        "diversifier" to ((addr["diversifier"] as? List<Int>)?.map { it.toByte() }?.toByteArray()
-                            ?: throw IllegalArgumentException("Invalid debtor diversifier")),
-                        "transmissionKey" to ((addr["transmissionKey"] as? List<Int>)?.map { it.toByte() }?.toByteArray()
-                            ?: throw IllegalArgumentException("Invalid debtor transmissionKey")),
-                        "clueKey" to ((addr["clueKey"] as? List<Int>)?.map { it.toByte() }?.toByteArray()
-                            ?: throw IllegalArgumentException("Invalid debtor clueKey"))
-                    )
-                } ?: throw IllegalArgumentException("Invalid debtorAddress structure")
+                val debtorAddress = noteMap["debtorAddress"] as? Map<*, *>
+                    ?: throw IllegalArgumentException("Invalid debtorAddress")
+                
+                processedNote["debtorDiversifier"] = (debtorAddress["diversifier"] as? List<Int>)
+                    ?.map { it.toByte() }?.toByteArray()
+                    ?: throw IllegalArgumentException("Invalid debtor diversifier")
+                processedNote["debtorTransmissionKey"] = (debtorAddress["transmissionKey"] as? List<Int>)
+                    ?.map { it.toByte() }?.toByteArray()
+                    ?: throw IllegalArgumentException("Invalid debtor transmissionKey")
+                processedNote["debtorClueKey"] = (debtorAddress["clueKey"] as? List<Int>)
+                    ?.map { it.toByte() }?.toByteArray()
+                    ?: throw IllegalArgumentException("Invalid debtor clueKey")
 
                 // Extract creditor address
-                val creditorAddress = (noteMap["creditorAddress"] as? Map<*, *>)?.let { addr ->
-                    mapOf(
-                        "diversifier" to ((addr["diversifier"] as? List<Int>)?.map { it.toByte() }?.toByteArray()
-                            ?: throw IllegalArgumentException("Invalid creditor diversifier")),
-                        "transmissionKey" to ((addr["transmissionKey"] as? List<Int>)?.map { it.toByte() }?.toByteArray()
-                            ?: throw IllegalArgumentException("Invalid creditor transmissionKey")),
-                        "clueKey" to ((addr["clueKey"] as? List<Int>)?.map { it.toByte() }?.toByteArray()
-                            ?: throw IllegalArgumentException("Invalid creditor clueKey"))
-                    )
-                } ?: throw IllegalArgumentException("Invalid creditorAddress structure")
+                val creditorAddress = noteMap["creditorAddress"] as? Map<*, *>
+                    ?: throw IllegalArgumentException("Invalid creditorAddress")
+                
+                processedNote["creditorDiversifier"] = (creditorAddress["diversifier"] as? List<Int>)
+                    ?.map { it.toByte() }?.toByteArray()
+                    ?: throw IllegalArgumentException("Invalid creditor diversifier")
+                processedNote["creditorTransmissionKey"] = (creditorAddress["transmissionKey"] as? List<Int>)
+                    ?.map { it.toByte() }?.toByteArray()
+                    ?: throw IllegalArgumentException("Invalid creditor transmissionKey")
+                processedNote["creditorClueKey"] = (creditorAddress["clueKey"] as? List<Int>)
+                    ?.map { it.toByte() }?.toByteArray()
+                    ?: throw IllegalArgumentException("Invalid creditor clueKey")
 
-                // Construct the note map for native call
-                val processedNote = mapOf(
-                    "commitment" to commitment,
-                    "debtorAddress" to debtorAddress,
-                    "creditorAddress" to creditorAddress
-                )
-
-                println("Calling signNoteNative...")
                 val result = signNoteNative(seedPhrase, processedNote)
-                println("signNoteNative returned successfully")
-
+                
+                // Convert the native result back to the format expected by TypeScript
                 promise.resolve(mapOf(
                     "signature" to (result["signature"]?.map { it.toInt() and 0xFF } ?: listOf()),
-                    "verificationKey" to (result["verificationKey"]?.map { it.toInt() and 0xFF } ?: listOf())
+                    "verificationKey" to (result["verificationKey"]?.map { it.toInt() and 0xFF } ?: listOf()),
+                    "note" to mapOf(
+                        "commitment" to (result["noteCommitment"]?.map { it.toInt() and 0xFF } ?: listOf()),
+                        "debtorAddress" to mapOf(
+                            "diversifier" to (result["debtorDiversifier"]?.map { it.toInt() and 0xFF } ?: listOf()),
+                            "transmissionKey" to (result["debtorTransmissionKey"]?.map { it.toInt() and 0xFF } ?: listOf()),
+                            "clueKey" to (result["debtorClueKey"]?.map { it.toInt() and 0xFF } ?: listOf())
+                        ),
+                        "creditorAddress" to mapOf(
+                            "diversifier" to (result["creditorDiversifier"]?.map { it.toInt() and 0xFF } ?: listOf()),
+                            "transmissionKey" to (result["creditorTransmissionKey"]?.map { it.toInt() and 0xFF } ?: listOf()),
+                            "clueKey" to (result["creditorClueKey"]?.map { it.toInt() and 0xFF } ?: listOf())
+                        )
+                    )
                 ))
             } catch (e: Exception) {
                 println("Error in signNote: ${e.message}")

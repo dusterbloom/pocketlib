@@ -61,7 +61,7 @@ export default function HomeScreen() {
         const debtorPhrase = 'garage advice weekend this dose mango sign horse tool torch mosquito repeat sentence valid scheme pull punch need prosper build actor say cancel allow';
         const creditorPhrase = 'word word word word word word word word word word word word';
         
-        debug('Seed Phrases', { debtorPhrase, creditorPhrase });
+        // debug('Seed Phrases', { debtorPhrase, creditorPhrase });
 
         // Generate keys for debtor
         console.log('\n[Step 1] Generating Debtor Keys...');
@@ -75,25 +75,25 @@ export default function HomeScreen() {
         console.log('\n[Step 2] Generating Addresses...');
         const startAddr = Date.now();
 
-        debug('Calling generateAddress with', {
-          spendKey: debtorKeys.spendKey,
-          index: 0
-        });
+        // debug('Calling generateAddress with', {
+        //   spendKey: debtorKeys.spendKey,
+        //   index: 0
+        // });
 
         const debtorAddr = await generateAddress({
           spendKey: debtorKeys.spendKey,
           index: 0
         });
-        debug('Debtor Address Generated', debtorAddr);
+        // debug('Debtor Address Generated', debtorAddr);
 
         const creditorKeys = await generateKeys(creditorPhrase);
-        debug('Creditor Keys Generated', creditorKeys);
+        // debug('Creditor Keys Generated', creditorKeys);
 
         const creditorAddr = await generateAddress({
           spendKey: creditorKeys.spendKey,
           index: 0
         });
-        debug('Creditor Address Generated', creditorAddr);
+        // debug('Creditor Address Generated', creditorAddr);
         
         const endAddr = Date.now();
         
@@ -111,7 +111,7 @@ export default function HomeScreen() {
           amount: 1000,
           assetId: 1
         };
-        debug('Creating Note with params', noteParams);
+        // debug('Creating Note with params', noteParams);
         
         const newNote = await createNote(noteParams);
         debug('Note Created', newNote);
@@ -138,26 +138,57 @@ export default function HomeScreen() {
         setSignedNote(signed);
         setTimings(prev => ({ ...prev, signTime: endSign - startSign }));
 
-        // Verify signature
         console.log('\n[Step 5] Verifying Signature...');
         const startVerify = Date.now();
-        
-        debug('Verifying signature with', {
-          verificationKey: signed.verificationKey,
-          commitment: signed.note.commitment,
-          signature: signed.signature
+
+        if (!signed.verificationKey || !signed.signature || !signed.note?.commitment) {
+          throw new Error('Missing required signature components');
+        }
+
+        // Debug logging
+        console.log('Verifying with:', {
+          verificationKey: bytesToHex(signed.verificationKey),
+          commitment: signed.note.commitment ? bytesToHex(signed.note.commitment) : 'missing',
+          signature: bytesToHex(signed.signature)
         });
-        
-        const valid = await verifySignature(
-          signed.verificationKey,
-          signed.note.commitment,
-          signed.signature
-        );
-        debug('Signature Verification Result', { valid });
-        
-        const endVerify = Date.now();
-        setIsValid(valid);
-        setTimings(prev => ({ ...prev, verifyTime: endVerify - startVerify }));
+
+        try {
+          const valid = await verifySignature({
+            verificationKey: signed.verificationKey,
+            commitment: signed.note.commitment,
+            signature: signed.signature
+          });
+
+          console.log('Verification result:', valid);
+          setIsValid(valid);
+          const endVerify = Date.now();
+          setTimings(prev => ({ ...prev, verifyTime: endVerify - startVerify }));
+        } catch (err) {
+          console.error('Verification error:', err);
+          setError(`Verification failed: ${err.message}`);
+        }
+
+        // console.log('\n[Step 5] Verifying Signature...');
+        // const startVerify = Date.now();
+
+        // if (!signed.verificationKey || !signed.signature || !signed.note?.commitment) {
+        //   throw new Error('Missing required signature components');
+        // }
+
+        // // Pass parameters as expected by the Kotlin module
+        // const valid = await verifySignature({
+          
+        //     verificationKey: signed.verificationKey,
+        //     commitment: signed.note.commitment,
+        //     signature: signed.signature
+          
+        // });
+
+        // console.log('Verification result:', valid);
+
+        // const endVerify = Date.now();
+        // setIsValid(valid);
+        // setTimings(prev => ({ ...prev, verifyTime: endVerify - startVerify }));
 
         console.log('\n=== ProofManager Flow Completed ===\n');
 
