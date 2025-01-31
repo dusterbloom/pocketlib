@@ -26,3 +26,27 @@ export type {
   SignedNote,
   NoteCreateParams  // Add this export
 };
+
+export type IntentAction = {
+  noteCommitment: string;
+  authSig: string;
+  rk: string;
+  zkp: string;
+  ciphertexts: string[];
+};
+
+export async function createIntentAction(params: {
+  debtorSeedPhase: Uint8Array;
+  rseedRandomness: Uint8Array;
+  debtorIndex: number;
+  creditorAddr: string;
+}): Promise<IntentAction> {
+  const result = await ProofManagerModule.createIntentAction(
+    Array.from(params.debtorSeedPhase),
+    Array.from(params.rseedRandomness),
+    params.debtorIndex,
+    params.creditorAddr
+  );
+  
+  return JSON.parse(result);
+}

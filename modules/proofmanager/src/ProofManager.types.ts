@@ -57,4 +57,11 @@ export interface ProofManagerInterface {
     commitment: number[],
     signature: number[]
   ): Promise<boolean>;
+
+  createIntentAction(
+    debtorSeedPhase: number[],
+    rseedRandomness: number[],
+    debtorIndex: number,
+    creditorAddr: string
+  ): Promise<string>;
 }

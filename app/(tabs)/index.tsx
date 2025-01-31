@@ -14,7 +14,9 @@ import {
   type KeyPair, 
   type Note, 
   type SignedNote,
-  type NoteCreateParams  
+  type NoteCreateParams,
+  createIntentAction,
+  type IntentAction
 } from '../../modules/proofmanager/index';
 
 import { Text } from "react-native";
@@ -37,6 +39,7 @@ export default function HomeScreen() {
   const [signedNote, setSignedNote] = useState<SignedNote | null>(null);
   const [isValid, setIsValid] = useState<boolean | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [intentAction, setIntentAction] = useState<IntentAction | null>(null);
   
   const [timings, setTimings] = useState<{
     keyGenTime: number | null;
@@ -44,12 +47,14 @@ export default function HomeScreen() {
     noteCreateTime: number | null;
     signTime: number | null;
     verifyTime: number | null;
+    intentTime: number | null;
   }>({
     keyGenTime: null,
     addressGenTime: null,
     noteCreateTime: null,
     signTime: null,
     verifyTime: null,
+    intentTime: null,
   });
 
   useEffect(() => {
@@ -159,6 +164,25 @@ export default function HomeScreen() {
         setIsValid(valid);
         setTimings(prev => ({ ...prev, verifyTime: endVerify - startVerify }));
 
+        // Create intent action
+        console.log('\n[Step 4] Creating Intent Action...');
+        const startIntent = Date.now();
+
+        // Generate random rseed (32 bytes)
+        const rseedRandomness = new Uint8Array(32); 
+        crypto.getRandomValues(rseedRandomness);
+
+        const intent = await createIntentAction({
+          debtorSeedPhase: new TextEncoder().encode(debtorPhrase),
+          rseedRandomness,
+          debtorIndex: 0,
+          creditorAddr: creditorAddr.toString() // Assuming AddressData has toString()
+        });
+
+        debug('Intent Action Created', intent);
+        setIntentAction(intent);
+        setTimings(prev => ({...prev, intentTime: Date.now() - startIntent}));
+
         console.log('\n=== ProofManager Flow Completed ===\n');
 
       } catch (err) {
@@ -224,6 +248,18 @@ export default function HomeScreen() {
         )}
       </ThemedView>
 
+      {/* Intent Action Section */}
+      <ThemedView style={styles.stepContainer}>
+        <ThemedText type="subtitle">Intent Action</ThemedText>
+        {intentAction && (
+          <>
+            <Text>Commitment: {intentAction.noteCommitment}</Text>
+            <Text>Auth Sig: {intentAction.authSig.slice(0, 16)}...</Text>
+            <Text>RK: {intentAction.rk.slice(0, 16)}...</Text>
+          </>
+        )}
+      </ThemedView>
+
       {/* Error Display */}
       {error && (
         <ThemedView style={styles.stepContainer}>
@@ -248,6 +284,9 @@ export default function HomeScreen() {
         )}
         {timings.verifyTime != null && (
           <Text>Signature Verification: {timings.verifyTime} ms</Text>
+        )}
+        {timings.intentTime != null && (
+          <Text>Intent Action: {timings.intentTime} ms</Text>
         )}
       </ThemedView>
 
