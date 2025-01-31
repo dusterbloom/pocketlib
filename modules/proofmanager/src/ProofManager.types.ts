@@ -48,6 +48,16 @@ export interface VerifySignatureParams {
 }
 
 
+export interface CreateIntentActionParams {
+  debtorSeedPhase: number[];
+  rseedRandomness: number[];
+  debtorIndex: number;
+  creditorAddr: string;
+  amount: number;
+  assetId: number;
+}
+
+
 export interface ProofManagerInterface {
   // Key and Address Generation
   generateKeys(seedPhrase: string): Promise<KeyPair>;
@@ -59,4 +69,8 @@ export interface ProofManagerInterface {
  // Signature Operations
  signNote(params: SignNoteParams): Promise<SignedNote>;
  verifySignature(params: VerifySignatureParams): Promise<boolean>;
+ 
+ 
+ // Create intent
+ createIntentAction(params: CreateIntentActionParams): Promise<string>;
 }

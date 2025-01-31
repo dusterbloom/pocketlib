@@ -726,6 +726,8 @@ internal interface UniffiForeignFutureCompleteVoid : com.sun.jna.Callback {
 
 
 
+
+
 // A JNA Library to expose the extern-C FFI definitions.
 // This is an implementation detail which will be called internally by the public API.
 
@@ -751,6 +753,8 @@ internal interface UniffiLib : Library {
     ): Unit
     fun uniffi_proofmanager_fn_constructor_proofmanager_new(uniffi_out_err: UniffiRustCallStatus, 
     ): Pointer
+    fun uniffi_proofmanager_fn_method_proofmanager_create_intent_action(`ptr`: Pointer,`debtorSeedPhase`: RustBuffer.ByValue,`rseedRandomness`: RustBuffer.ByValue,`debtorIndex`: Int,`creditorAddr`: RustBuffer.ByValue,`amount`: Long,`assetId`: Long,uniffi_out_err: UniffiRustCallStatus, 
+    ): RustBuffer.ByValue
     fun uniffi_proofmanager_fn_method_proofmanager_create_note(`ptr`: Pointer,`debtorAddress`: RustBuffer.ByValue,`creditorAddress`: RustBuffer.ByValue,`amount`: Long,`assetId`: Long,uniffi_out_err: UniffiRustCallStatus, 
     ): RustBuffer.ByValue
     fun uniffi_proofmanager_fn_method_proofmanager_generate_address(`ptr`: Pointer,`spendKeyBytes`: RustBuffer.ByValue,`index`: Int,uniffi_out_err: UniffiRustCallStatus, 
@@ -873,6 +877,8 @@ internal interface UniffiLib : Library {
     ): Unit
     fun ffi_proofmanager_rust_future_complete_void(`handle`: Long,uniffi_out_err: UniffiRustCallStatus, 
     ): Unit
+    fun uniffi_proofmanager_checksum_method_proofmanager_create_intent_action(
+    ): Short
     fun uniffi_proofmanager_checksum_method_proofmanager_create_note(
     ): Short
     fun uniffi_proofmanager_checksum_method_proofmanager_generate_address(
@@ -902,6 +908,9 @@ private fun uniffiCheckContractApiVersion(lib: UniffiLib) {
 
 @Suppress("UNUSED_PARAMETER")
 private fun uniffiCheckApiChecksums(lib: UniffiLib) {
+    if (lib.uniffi_proofmanager_checksum_method_proofmanager_create_intent_action() != 34697.toShort()) {
+        throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
+    }
     if (lib.uniffi_proofmanager_checksum_method_proofmanager_create_note() != 45218.toShort()) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
@@ -1276,6 +1285,8 @@ private class JavaLangRefCleanable(
 }
 public interface ProofManagerInterface {
     
+    fun `createIntentAction`(`debtorSeedPhase`: kotlin.ByteArray, `rseedRandomness`: kotlin.ByteArray, `debtorIndex`: kotlin.UInt, `creditorAddr`: kotlin.String, `amount`: kotlin.ULong, `assetId`: kotlin.ULong): kotlin.String
+    
     fun `createNote`(`debtorAddress`: AddressData, `creditorAddress`: AddressData, `amount`: kotlin.ULong, `assetId`: kotlin.ULong): Note
     
     fun `generateAddress`(`spendKeyBytes`: kotlin.ByteArray, `index`: kotlin.UInt): AddressData
@@ -1376,6 +1387,19 @@ open class ProofManager: Disposable, AutoCloseable, ProofManagerInterface {
             UniffiLib.INSTANCE.uniffi_proofmanager_fn_clone_proofmanager(pointer!!, status)
         }
     }
+
+    
+    @Throws(ProofException::class)override fun `createIntentAction`(`debtorSeedPhase`: kotlin.ByteArray, `rseedRandomness`: kotlin.ByteArray, `debtorIndex`: kotlin.UInt, `creditorAddr`: kotlin.String, `amount`: kotlin.ULong, `assetId`: kotlin.ULong): kotlin.String {
+            return FfiConverterString.lift(
+    callWithPointer {
+    uniffiRustCallWithError(ProofException) { _status ->
+    UniffiLib.INSTANCE.uniffi_proofmanager_fn_method_proofmanager_create_intent_action(
+        it, FfiConverterByteArray.lower(`debtorSeedPhase`),FfiConverterByteArray.lower(`rseedRandomness`),FfiConverterUInt.lower(`debtorIndex`),FfiConverterString.lower(`creditorAddr`),FfiConverterULong.lower(`amount`),FfiConverterULong.lower(`assetId`),_status)
+}
+    }
+    )
+    }
+    
 
     
     @Throws(ProofException::class)override fun `createNote`(`debtorAddress`: AddressData, `creditorAddress`: AddressData, `amount`: kotlin.ULong, `assetId`: kotlin.ULong): Note {
@@ -1658,6 +1682,14 @@ sealed class ProofException: kotlin.Exception() {
             get() = "v1=${ v1 }"
     }
     
+    class IntentException(
+        
+        val v1: kotlin.String
+        ) : ProofException() {
+        override val message
+            get() = "v1=${ v1 }"
+    }
+    
 
     companion object ErrorHandler : UniffiRustCallStatusErrorHandler<ProofException> {
         override fun lift(error_buf: RustBuffer.ByValue): ProofException = FfiConverterTypeProofError.lift(error_buf)
@@ -1678,6 +1710,9 @@ public object FfiConverterTypeProofError : FfiConverterRustBuffer<ProofException
             2 -> ProofException.InvalidKey()
             3 -> ProofException.InvalidSignature()
             4 -> ProofException.NoteException(
+                FfiConverterString.read(buf),
+                )
+            5 -> ProofException.IntentException(
                 FfiConverterString.read(buf),
                 )
             else -> throw RuntimeException("invalid error enum value, something is very wrong!!")
@@ -1703,6 +1738,11 @@ public object FfiConverterTypeProofError : FfiConverterRustBuffer<ProofException
                 4UL
                 + FfiConverterString.allocationSize(value.v1)
             )
+            is ProofException.IntentException -> (
+                // Add the size for the Int that specifies the variant plus the size needed for all fields
+                4UL
+                + FfiConverterString.allocationSize(value.v1)
+            )
         }
     }
 
@@ -1722,6 +1762,11 @@ public object FfiConverterTypeProofError : FfiConverterRustBuffer<ProofException
             }
             is ProofException.NoteException -> {
                 buf.putInt(4)
+                FfiConverterString.write(value.v1, buf)
+                Unit
+            }
+            is ProofException.IntentException -> {
+                buf.putInt(5)
                 FfiConverterString.write(value.v1, buf)
                 Unit
             }

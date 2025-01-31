@@ -5,11 +5,17 @@ use decaf377::{
     r1cs::{ElementVar, FqVar},
     Fq,
 };
+use once_cell::sync::Lazy;
 use penumbra_asset::ValueVar;
 use penumbra_keys::address::AddressVar;
 use penumbra_tct::r1cs::StateCommitmentVar;
 
-use super::NOTECOMMIT_DOMAIN_SEP;
+
+pub(crate) static NOTECOMMIT_DOMAIN_SEP: Lazy<Fq> = Lazy::new(|| {
+    Fq::from_le_bytes_mod_order(blake2b_simd::blake2b(b"penumbra.notecommit").as_bytes())
+});
+
+
 use crate::note::Note;
 
 pub struct NoteVar {

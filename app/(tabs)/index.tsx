@@ -10,11 +10,13 @@ import {
   createNote,
   signNote,
   verifySignature,
+  createIntentAction,
   type AddressData,
   type KeyPair,
   type Note,
   type SignedNote,
-  type NoteCreateParams
+  type NoteCreateParams,
+  type CreateIntentActionParams
 } from '../../modules/proofmanager/index';
 
 import { Text } from "react-native";
@@ -47,12 +49,14 @@ export default function HomeScreen() {
     noteCreateTime: number | null;
     signTime: number | null;
     verifyTime: number | null;
+    intentTime: number | null;  
   }>({
     keyGenTime: null,
     addressGenTime: null,
     noteCreateTime: null,
     signTime: null,
     verifyTime: null,
+    intentTime: null
   });
 
   useEffect(() => {
@@ -171,6 +175,28 @@ export default function HomeScreen() {
           setError(`Verification failed: ${err.message}`);
         }
 
+        // Add after verifying signature in useEffect
+        console.log('\n[Step 6] Creating Intent Action...');
+        const startIntent = Date.now();
+
+        try {
+          const intentResult = await createIntentAction({
+            debtorSeedPhase: Array.from(new TextEncoder().encode(debtorPhrase)),
+            rseedRandomness: Array(32).fill(0).map(() => Math.floor(Math.random() * 256)),
+            debtorIndex: 0,
+            creditorAddr: bytesToHex(creditorAddr.transmissionKey), // Or appropriate address format
+            amount: parseInt(amount),
+            assetId: parseInt(assetId)
+          });
+
+          debug('Intent Action Created', intentResult);
+          const endIntent = Date.now();
+          setTimings(prev => ({ ...prev, intentTime: endIntent - startIntent }));
+        } catch (err) {
+          console.error('Intent creation error:', err);
+          setError(`Intent creation failed: ${err.message}`);
+        }
+
 
 
         console.log('\n=== ProofManager Flow Completed ===\n');
@@ -281,6 +307,9 @@ export default function HomeScreen() {
         )}
         {timings.verifyTime != null && (
           <Text>Signature Verification: {timings.verifyTime} ms</Text>
+        )}
+        {timings.intentTime != null && (
+          <Text>Intent Creation: {timings.intentTime} ms</Text>
         )}
       </ThemedView>
 

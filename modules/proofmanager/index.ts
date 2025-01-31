@@ -5,7 +5,8 @@ import type {
   AddressData, 
   Note, 
   SignedNote,
-  NoteCreateParams  // Make sure this is added
+  NoteCreateParams,  // Make sure this is added
+  CreateIntentActionParams
 } from './src/ProofManager.types';
 
 export const {
@@ -13,7 +14,8 @@ export const {
   generateAddress,
   createNote,
   signNote,
-  verifySignature
+  verifySignature,
+  createIntentAction
 } = ProofManagerModule;
 
 export default ProofManagerModule;
@@ -24,5 +26,6 @@ export type {
   AddressData,
   Note,
   SignedNote,
-  NoteCreateParams  // Add this export
+  NoteCreateParams,
+  CreateIntentActionParams    
 };

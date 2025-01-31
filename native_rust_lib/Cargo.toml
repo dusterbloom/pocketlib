@@ -45,6 +45,8 @@ rand_core                        = { version = "0.6.4", default-features = false
 serde                            = { version = "1.0.216", features = ["derive"], default-features = false }
 tracing                          = { version = "0.1.41", default-features = false }
 rand = "0.8.5"
+cosmwasm-std = "2.2.0"
+
 
 [dev-dependencies]
 proptest                         = { version = "1" }
