@@ -262,10 +262,18 @@ impl ProofManager {
       rust_log!("rseed_randomness len = {}", rseed_randomness.len());
       rust_log!("creditor_addr = {}", creditor_addr);
 
+
+      let debtor_seed_str = String::from_utf8(debtor_seed_phrase)
+       .map_err(|_| ProofError::InvalidSeed)?;
+    //  let seed_phrase = SeedPhrase::from_str(&debtor_seed_str)
+    //     .map_err(|_| ProofError::InvalidSeed)?;
+
+
         let sk_debtor = {
-            let seed_phrase = SeedPhrase::from_randomness(&debtor_seed_phrase);
+            let seed_phrase = SeedPhrase::from_str(&debtor_seed_str).unwrap();
             SpendKey::from_seed_phrase_bip44(seed_phrase, &Bip44Path::new(0))
         };
+
         rust_log!("Generated debtor spend key {:?}", sk_debtor);
 
         let debtor_addr = {
