@@ -179,12 +179,23 @@ export default function HomeScreen() {
         console.log('\n[Step 6] Creating Intent Action...');
         const startIntent = Date.now();
 
+      // Debug logging
+      console.log('CreateIntent with:', {
+        debtorSeedPhrase: Array.from(new TextEncoder().encode(debtorPhrase)),
+        rseedRandomness: Array(32).fill(0).map(() => Math.floor(Math.random() * 256)),
+        debtorIndex: 0,
+        creditorAddr: "penumbra1qvsnxx2hq7ekuxavw3k35fgzwtfa0na9n7kquz5gvzzly05rpjsyma0rdyqctkyxe75sh3afdhsj033zne6en332aaglrj4fk7vge7apaepjlz4a07fphk5l206vrhsphfk2da", // Or appropriate address format
+        amount: parseInt(amount),
+        assetId: parseInt(assetId)
+      });
+
+
         try {
           const intentResult = await createIntentAction({
-            debtorSeedPhase: Array.from(new TextEncoder().encode(debtorPhrase)),
+            debtorSeedPhrase: Array.from(new TextEncoder().encode(debtorPhrase)),
             rseedRandomness: Array(32).fill(0).map(() => Math.floor(Math.random() * 256)),
             debtorIndex: 0,
-            creditorAddr: bytesToHex(creditorAddr.transmissionKey), // Or appropriate address format
+            creditorAddr: "penumbra1qvsnxx2hq7ekuxavw3k35fgzwtfa0na9n7kquz5gvzzly05rpjsyma0rdyqctkyxe75sh3afdhsj033zne6en332aaglrj4fk7vge7apaepjlz4a07fphk5l206vrhsphfk2da", // Or appropriate address format
             amount: parseInt(amount),
             assetId: parseInt(assetId)
           });

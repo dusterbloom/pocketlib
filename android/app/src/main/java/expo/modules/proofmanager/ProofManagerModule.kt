@@ -45,6 +45,16 @@ class ProofManagerModule : Module() {
         signature: ByteArray
     ): Boolean
 
+    private external fun createIntentActionNative(
+        debtorSeedPhrase: ByteArray,
+        rseedRandomness: ByteArray,
+        debtorIndex: Int,
+        creditorAddr: String,
+        amount: Long,
+        assetId: Long
+    ): String
+
+
     override fun definition() = ModuleDefinition {
         Name("ProofManager")
 
@@ -200,6 +210,35 @@ class ProofManagerModule : Module() {
                     ?: throw IllegalArgumentException("Invalid signature")
 
                 val result = verifySignatureNative(verificationKey, commitment, signature)
+                promise.resolve(result)
+            } catch (e: Exception) {
+                promise.reject("PROOF_ERROR", e.message, e)
+            }
+        }
+
+        AsyncFunction("createIntentAction") { args: Map<String, Any>, promise: Promise ->
+            try {
+                val debtorSeedPhrase = (args["debtorSeedPhrase"] as? List<Int>)?.map { it.toByte() }?.toByteArray()
+                    ?: throw IllegalArgumentException("Invalid debtorSeedPhrase")
+                val rseedRandomness = (args["rseedRandomness"] as? List<Int>)?.map { it.toByte() }?.toByteArray()
+                    ?: throw IllegalArgumentException("Invalid rseedRandomness")
+                val debtorIndex = (args["debtorIndex"] as? Number)?.toInt()
+                    ?: throw IllegalArgumentException("Invalid debtorIndex")
+                val creditorAddr = args["creditorAddr"] as? String
+                    ?: throw IllegalArgumentException("Invalid creditorAddr")
+                val amount = (args["amount"] as? Number)?.toLong()
+                    ?: throw IllegalArgumentException("Invalid amount")
+                val assetId = (args["assetId"] as? Number)?.toLong()
+                    ?: throw IllegalArgumentException("Invalid assetId")
+
+                val result = createIntentActionNative(
+                    debtorSeedPhrase,
+                    rseedRandomness,
+                    debtorIndex,
+                    creditorAddr,
+                    amount,
+                    assetId
+                )
                 promise.resolve(result)
             } catch (e: Exception) {
                 promise.reject("PROOF_ERROR", e.message, e)
