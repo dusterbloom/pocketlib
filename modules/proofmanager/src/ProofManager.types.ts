@@ -49,7 +49,7 @@ export interface VerifySignatureParams {
 
 
 export interface CreateIntentActionParams {
-  debtorSeedPhase: number[];
+  debtorSeedPhrase: number[];
   rseedRandomness: number[];
   debtorIndex: number;
   creditorAddr: string;

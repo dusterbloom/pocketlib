@@ -516,19 +516,17 @@ fileprivate struct FfiConverterData: FfiConverterRustBuffer {
 
 public protocol ProofManagerProtocol : AnyObject {
     
-    func createProof(input: ProofInput) throws  -> SerializedProof
+    func createIntentAction(debtorSeedPhrase: Data, rseedRandomness: Data, debtorIndex: UInt32, creditorAddr: String, amount: UInt64, assetId: UInt64) throws  -> String
     
-    func createProofWithCommitment(input: ProofInput) throws  -> ProofWithCommitment
+    func createNote(debtorAddress: AddressData, creditorAddress: AddressData, amount: UInt64, assetId: UInt64) throws  -> Note
     
-    func debugCommitment(commitment: Data) throws  -> String
+    func generateAddress(spendKeyBytes: Data, index: UInt32) throws  -> AddressData
     
-    func debugProof(proof: SerializedProof) throws  -> String
+    func generateKeys(seedPhrase: String) throws  -> KeyPair
     
-    func generateAddress(seedPhrase: String, index: UInt32) throws  -> AddressInfo
+    func signNote(seedPhrase: String, note: Note) throws  -> SignedNote
     
-    func generateCommitment(input: ProofInput)  -> Data
-    
-    func verifyProof(proof: SerializedProof, commitment: Data) throws  -> Bool
+    func verifySignature(verificationKeyBytes: Data, commitment: Data, signature: Data) throws  -> Bool
     
 }
 
@@ -589,60 +587,62 @@ public convenience init()throws  {
     
 
     
-open func createProof(input: ProofInput)throws  -> SerializedProof {
-    return try  FfiConverterTypeSerializedProof.lift(try rustCallWithError(FfiConverterTypeProofError.lift) {
-    uniffi_proofmanager_fn_method_proofmanager_create_proof(self.uniffiClonePointer(),
-        FfiConverterTypeProofInput.lower(input),$0
-    )
-})
-}
-    
-open func createProofWithCommitment(input: ProofInput)throws  -> ProofWithCommitment {
-    return try  FfiConverterTypeProofWithCommitment.lift(try rustCallWithError(FfiConverterTypeProofError.lift) {
-    uniffi_proofmanager_fn_method_proofmanager_create_proof_with_commitment(self.uniffiClonePointer(),
-        FfiConverterTypeProofInput.lower(input),$0
-    )
-})
-}
-    
-open func debugCommitment(commitment: Data)throws  -> String {
+open func createIntentAction(debtorSeedPhrase: Data, rseedRandomness: Data, debtorIndex: UInt32, creditorAddr: String, amount: UInt64, assetId: UInt64)throws  -> String {
     return try  FfiConverterString.lift(try rustCallWithError(FfiConverterTypeProofError.lift) {
-    uniffi_proofmanager_fn_method_proofmanager_debug_commitment(self.uniffiClonePointer(),
-        FfiConverterData.lower(commitment),$0
+    uniffi_proofmanager_fn_method_proofmanager_create_intent_action(self.uniffiClonePointer(),
+        FfiConverterData.lower(debtorSeedPhrase),
+        FfiConverterData.lower(rseedRandomness),
+        FfiConverterUInt32.lower(debtorIndex),
+        FfiConverterString.lower(creditorAddr),
+        FfiConverterUInt64.lower(amount),
+        FfiConverterUInt64.lower(assetId),$0
     )
 })
 }
     
-open func debugProof(proof: SerializedProof)throws  -> String {
-    return try  FfiConverterString.lift(try rustCallWithError(FfiConverterTypeProofError.lift) {
-    uniffi_proofmanager_fn_method_proofmanager_debug_proof(self.uniffiClonePointer(),
-        FfiConverterTypeSerializedProof.lower(proof),$0
+open func createNote(debtorAddress: AddressData, creditorAddress: AddressData, amount: UInt64, assetId: UInt64)throws  -> Note {
+    return try  FfiConverterTypeNote.lift(try rustCallWithError(FfiConverterTypeProofError.lift) {
+    uniffi_proofmanager_fn_method_proofmanager_create_note(self.uniffiClonePointer(),
+        FfiConverterTypeAddressData.lower(debtorAddress),
+        FfiConverterTypeAddressData.lower(creditorAddress),
+        FfiConverterUInt64.lower(amount),
+        FfiConverterUInt64.lower(assetId),$0
     )
 })
 }
     
-open func generateAddress(seedPhrase: String, index: UInt32)throws  -> AddressInfo {
-    return try  FfiConverterTypeAddressInfo.lift(try rustCallWithError(FfiConverterTypeProofError.lift) {
+open func generateAddress(spendKeyBytes: Data, index: UInt32)throws  -> AddressData {
+    return try  FfiConverterTypeAddressData.lift(try rustCallWithError(FfiConverterTypeProofError.lift) {
     uniffi_proofmanager_fn_method_proofmanager_generate_address(self.uniffiClonePointer(),
-        FfiConverterString.lower(seedPhrase),
+        FfiConverterData.lower(spendKeyBytes),
         FfiConverterUInt32.lower(index),$0
     )
 })
 }
     
-open func generateCommitment(input: ProofInput) -> Data {
-    return try!  FfiConverterData.lift(try! rustCall() {
-    uniffi_proofmanager_fn_method_proofmanager_generate_commitment(self.uniffiClonePointer(),
-        FfiConverterTypeProofInput.lower(input),$0
+open func generateKeys(seedPhrase: String)throws  -> KeyPair {
+    return try  FfiConverterTypeKeyPair.lift(try rustCallWithError(FfiConverterTypeProofError.lift) {
+    uniffi_proofmanager_fn_method_proofmanager_generate_keys(self.uniffiClonePointer(),
+        FfiConverterString.lower(seedPhrase),$0
     )
 })
 }
     
-open func verifyProof(proof: SerializedProof, commitment: Data)throws  -> Bool {
+open func signNote(seedPhrase: String, note: Note)throws  -> SignedNote {
+    return try  FfiConverterTypeSignedNote.lift(try rustCallWithError(FfiConverterTypeProofError.lift) {
+    uniffi_proofmanager_fn_method_proofmanager_sign_note(self.uniffiClonePointer(),
+        FfiConverterString.lower(seedPhrase),
+        FfiConverterTypeNote.lower(note),$0
+    )
+})
+}
+    
+open func verifySignature(verificationKeyBytes: Data, commitment: Data, signature: Data)throws  -> Bool {
     return try  FfiConverterBool.lift(try rustCallWithError(FfiConverterTypeProofError.lift) {
-    uniffi_proofmanager_fn_method_proofmanager_verify_proof(self.uniffiClonePointer(),
-        FfiConverterTypeSerializedProof.lower(proof),
-        FfiConverterData.lower(commitment),$0
+    uniffi_proofmanager_fn_method_proofmanager_verify_signature(self.uniffiClonePointer(),
+        FfiConverterData.lower(verificationKeyBytes),
+        FfiConverterData.lower(commitment),
+        FfiConverterData.lower(signature),$0
     )
 })
 }
@@ -702,7 +702,7 @@ public func FfiConverterTypeProofManager_lower(_ value: ProofManager) -> UnsafeM
 }
 
 
-public struct AddressInfo {
+public struct AddressData {
     public var diversifier: Data
     public var transmissionKey: Data
     public var clueKey: Data
@@ -718,8 +718,8 @@ public struct AddressInfo {
 
 
 
-extension AddressInfo: Equatable, Hashable {
-    public static func ==(lhs: AddressInfo, rhs: AddressInfo) -> Bool {
+extension AddressData: Equatable, Hashable {
+    public static func ==(lhs: AddressData, rhs: AddressData) -> Bool {
         if lhs.diversifier != rhs.diversifier {
             return false
         }
@@ -743,17 +743,17 @@ extension AddressInfo: Equatable, Hashable {
 #if swift(>=5.8)
 @_documentation(visibility: private)
 #endif
-public struct FfiConverterTypeAddressInfo: FfiConverterRustBuffer {
-    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> AddressInfo {
+public struct FfiConverterTypeAddressData: FfiConverterRustBuffer {
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> AddressData {
         return
-            try AddressInfo(
+            try AddressData(
                 diversifier: FfiConverterData.read(from: &buf), 
                 transmissionKey: FfiConverterData.read(from: &buf), 
                 clueKey: FfiConverterData.read(from: &buf)
         )
     }
 
-    public static func write(_ value: AddressInfo, into buf: inout [UInt8]) {
+    public static func write(_ value: AddressData, into buf: inout [UInt8]) {
         FfiConverterData.write(value.diversifier, into: &buf)
         FfiConverterData.write(value.transmissionKey, into: &buf)
         FfiConverterData.write(value.clueKey, into: &buf)
@@ -764,58 +764,46 @@ public struct FfiConverterTypeAddressInfo: FfiConverterRustBuffer {
 #if swift(>=5.8)
 @_documentation(visibility: private)
 #endif
-public func FfiConverterTypeAddressInfo_lift(_ buf: RustBuffer) throws -> AddressInfo {
-    return try FfiConverterTypeAddressInfo.lift(buf)
+public func FfiConverterTypeAddressData_lift(_ buf: RustBuffer) throws -> AddressData {
+    return try FfiConverterTypeAddressData.lift(buf)
 }
 
 #if swift(>=5.8)
 @_documentation(visibility: private)
 #endif
-public func FfiConverterTypeAddressInfo_lower(_ value: AddressInfo) -> RustBuffer {
-    return FfiConverterTypeAddressInfo.lower(value)
+public func FfiConverterTypeAddressData_lower(_ value: AddressData) -> RustBuffer {
+    return FfiConverterTypeAddressData.lower(value)
 }
 
 
-public struct ProofInput {
-    public var seedPhrase: String
-    public var amount: UInt64
-    public var assetId: UInt64
-    public var addressIndex: UInt32
+public struct KeyPair {
+    public var spendKey: Data
+    public var viewKey: Data
 
     // Default memberwise initializers are never public by default, so we
     // declare one manually.
-    public init(seedPhrase: String, amount: UInt64, assetId: UInt64, addressIndex: UInt32) {
-        self.seedPhrase = seedPhrase
-        self.amount = amount
-        self.assetId = assetId
-        self.addressIndex = addressIndex
+    public init(spendKey: Data, viewKey: Data) {
+        self.spendKey = spendKey
+        self.viewKey = viewKey
     }
 }
 
 
 
-extension ProofInput: Equatable, Hashable {
-    public static func ==(lhs: ProofInput, rhs: ProofInput) -> Bool {
-        if lhs.seedPhrase != rhs.seedPhrase {
+extension KeyPair: Equatable, Hashable {
+    public static func ==(lhs: KeyPair, rhs: KeyPair) -> Bool {
+        if lhs.spendKey != rhs.spendKey {
             return false
         }
-        if lhs.amount != rhs.amount {
-            return false
-        }
-        if lhs.assetId != rhs.assetId {
-            return false
-        }
-        if lhs.addressIndex != rhs.addressIndex {
+        if lhs.viewKey != rhs.viewKey {
             return false
         }
         return true
     }
 
     public func hash(into hasher: inout Hasher) {
-        hasher.combine(seedPhrase)
-        hasher.combine(amount)
-        hasher.combine(assetId)
-        hasher.combine(addressIndex)
+        hasher.combine(spendKey)
+        hasher.combine(viewKey)
     }
 }
 
@@ -823,22 +811,18 @@ extension ProofInput: Equatable, Hashable {
 #if swift(>=5.8)
 @_documentation(visibility: private)
 #endif
-public struct FfiConverterTypeProofInput: FfiConverterRustBuffer {
-    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> ProofInput {
+public struct FfiConverterTypeKeyPair: FfiConverterRustBuffer {
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> KeyPair {
         return
-            try ProofInput(
-                seedPhrase: FfiConverterString.read(from: &buf), 
-                amount: FfiConverterUInt64.read(from: &buf), 
-                assetId: FfiConverterUInt64.read(from: &buf), 
-                addressIndex: FfiConverterUInt32.read(from: &buf)
+            try KeyPair(
+                spendKey: FfiConverterData.read(from: &buf), 
+                viewKey: FfiConverterData.read(from: &buf)
         )
     }
 
-    public static func write(_ value: ProofInput, into buf: inout [UInt8]) {
-        FfiConverterString.write(value.seedPhrase, into: &buf)
-        FfiConverterUInt64.write(value.amount, into: &buf)
-        FfiConverterUInt64.write(value.assetId, into: &buf)
-        FfiConverterUInt32.write(value.addressIndex, into: &buf)
+    public static func write(_ value: KeyPair, into buf: inout [UInt8]) {
+        FfiConverterData.write(value.spendKey, into: &buf)
+        FfiConverterData.write(value.viewKey, into: &buf)
     }
 }
 
@@ -846,35 +830,50 @@ public struct FfiConverterTypeProofInput: FfiConverterRustBuffer {
 #if swift(>=5.8)
 @_documentation(visibility: private)
 #endif
-public func FfiConverterTypeProofInput_lift(_ buf: RustBuffer) throws -> ProofInput {
-    return try FfiConverterTypeProofInput.lift(buf)
+public func FfiConverterTypeKeyPair_lift(_ buf: RustBuffer) throws -> KeyPair {
+    return try FfiConverterTypeKeyPair.lift(buf)
 }
 
 #if swift(>=5.8)
 @_documentation(visibility: private)
 #endif
-public func FfiConverterTypeProofInput_lower(_ value: ProofInput) -> RustBuffer {
-    return FfiConverterTypeProofInput.lower(value)
+public func FfiConverterTypeKeyPair_lower(_ value: KeyPair) -> RustBuffer {
+    return FfiConverterTypeKeyPair.lower(value)
 }
 
 
-public struct ProofWithCommitment {
-    public var proof: SerializedProof
+public struct Note {
+    public var debtorAddress: AddressData
+    public var creditorAddress: AddressData
+    public var amount: UInt64
+    public var assetId: UInt64
     public var commitment: Data
 
     // Default memberwise initializers are never public by default, so we
     // declare one manually.
-    public init(proof: SerializedProof, commitment: Data) {
-        self.proof = proof
+    public init(debtorAddress: AddressData, creditorAddress: AddressData, amount: UInt64, assetId: UInt64, commitment: Data) {
+        self.debtorAddress = debtorAddress
+        self.creditorAddress = creditorAddress
+        self.amount = amount
+        self.assetId = assetId
         self.commitment = commitment
     }
 }
 
 
 
-extension ProofWithCommitment: Equatable, Hashable {
-    public static func ==(lhs: ProofWithCommitment, rhs: ProofWithCommitment) -> Bool {
-        if lhs.proof != rhs.proof {
+extension Note: Equatable, Hashable {
+    public static func ==(lhs: Note, rhs: Note) -> Bool {
+        if lhs.debtorAddress != rhs.debtorAddress {
+            return false
+        }
+        if lhs.creditorAddress != rhs.creditorAddress {
+            return false
+        }
+        if lhs.amount != rhs.amount {
+            return false
+        }
+        if lhs.assetId != rhs.assetId {
             return false
         }
         if lhs.commitment != rhs.commitment {
@@ -884,7 +883,10 @@ extension ProofWithCommitment: Equatable, Hashable {
     }
 
     public func hash(into hasher: inout Hasher) {
-        hasher.combine(proof)
+        hasher.combine(debtorAddress)
+        hasher.combine(creditorAddress)
+        hasher.combine(amount)
+        hasher.combine(assetId)
         hasher.combine(commitment)
     }
 }
@@ -893,17 +895,23 @@ extension ProofWithCommitment: Equatable, Hashable {
 #if swift(>=5.8)
 @_documentation(visibility: private)
 #endif
-public struct FfiConverterTypeProofWithCommitment: FfiConverterRustBuffer {
-    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> ProofWithCommitment {
+public struct FfiConverterTypeNote: FfiConverterRustBuffer {
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> Note {
         return
-            try ProofWithCommitment(
-                proof: FfiConverterTypeSerializedProof.read(from: &buf), 
+            try Note(
+                debtorAddress: FfiConverterTypeAddressData.read(from: &buf), 
+                creditorAddress: FfiConverterTypeAddressData.read(from: &buf), 
+                amount: FfiConverterUInt64.read(from: &buf), 
+                assetId: FfiConverterUInt64.read(from: &buf), 
                 commitment: FfiConverterData.read(from: &buf)
         )
     }
 
-    public static func write(_ value: ProofWithCommitment, into buf: inout [UInt8]) {
-        FfiConverterTypeSerializedProof.write(value.proof, into: &buf)
+    public static func write(_ value: Note, into buf: inout [UInt8]) {
+        FfiConverterTypeAddressData.write(value.debtorAddress, into: &buf)
+        FfiConverterTypeAddressData.write(value.creditorAddress, into: &buf)
+        FfiConverterUInt64.write(value.amount, into: &buf)
+        FfiConverterUInt64.write(value.assetId, into: &buf)
         FfiConverterData.write(value.commitment, into: &buf)
     }
 }
@@ -912,40 +920,52 @@ public struct FfiConverterTypeProofWithCommitment: FfiConverterRustBuffer {
 #if swift(>=5.8)
 @_documentation(visibility: private)
 #endif
-public func FfiConverterTypeProofWithCommitment_lift(_ buf: RustBuffer) throws -> ProofWithCommitment {
-    return try FfiConverterTypeProofWithCommitment.lift(buf)
+public func FfiConverterTypeNote_lift(_ buf: RustBuffer) throws -> Note {
+    return try FfiConverterTypeNote.lift(buf)
 }
 
 #if swift(>=5.8)
 @_documentation(visibility: private)
 #endif
-public func FfiConverterTypeProofWithCommitment_lower(_ value: ProofWithCommitment) -> RustBuffer {
-    return FfiConverterTypeProofWithCommitment.lower(value)
+public func FfiConverterTypeNote_lower(_ value: Note) -> RustBuffer {
+    return FfiConverterTypeNote.lower(value)
 }
 
 
-public struct SerializedProof {
-    public var data: Data
+public struct SignedNote {
+    public var note: Note
+    public var signature: Data
+    public var verificationKey: Data
 
     // Default memberwise initializers are never public by default, so we
     // declare one manually.
-    public init(data: Data) {
-        self.data = data
+    public init(note: Note, signature: Data, verificationKey: Data) {
+        self.note = note
+        self.signature = signature
+        self.verificationKey = verificationKey
     }
 }
 
 
 
-extension SerializedProof: Equatable, Hashable {
-    public static func ==(lhs: SerializedProof, rhs: SerializedProof) -> Bool {
-        if lhs.data != rhs.data {
+extension SignedNote: Equatable, Hashable {
+    public static func ==(lhs: SignedNote, rhs: SignedNote) -> Bool {
+        if lhs.note != rhs.note {
+            return false
+        }
+        if lhs.signature != rhs.signature {
+            return false
+        }
+        if lhs.verificationKey != rhs.verificationKey {
             return false
         }
         return true
     }
 
     public func hash(into hasher: inout Hasher) {
-        hasher.combine(data)
+        hasher.combine(note)
+        hasher.combine(signature)
+        hasher.combine(verificationKey)
     }
 }
 
@@ -953,16 +973,20 @@ extension SerializedProof: Equatable, Hashable {
 #if swift(>=5.8)
 @_documentation(visibility: private)
 #endif
-public struct FfiConverterTypeSerializedProof: FfiConverterRustBuffer {
-    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> SerializedProof {
+public struct FfiConverterTypeSignedNote: FfiConverterRustBuffer {
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> SignedNote {
         return
-            try SerializedProof(
-                data: FfiConverterData.read(from: &buf)
+            try SignedNote(
+                note: FfiConverterTypeNote.read(from: &buf), 
+                signature: FfiConverterData.read(from: &buf), 
+                verificationKey: FfiConverterData.read(from: &buf)
         )
     }
 
-    public static func write(_ value: SerializedProof, into buf: inout [UInt8]) {
-        FfiConverterData.write(value.data, into: &buf)
+    public static func write(_ value: SignedNote, into buf: inout [UInt8]) {
+        FfiConverterTypeNote.write(value.note, into: &buf)
+        FfiConverterData.write(value.signature, into: &buf)
+        FfiConverterData.write(value.verificationKey, into: &buf)
     }
 }
 
@@ -970,15 +994,15 @@ public struct FfiConverterTypeSerializedProof: FfiConverterRustBuffer {
 #if swift(>=5.8)
 @_documentation(visibility: private)
 #endif
-public func FfiConverterTypeSerializedProof_lift(_ buf: RustBuffer) throws -> SerializedProof {
-    return try FfiConverterTypeSerializedProof.lift(buf)
+public func FfiConverterTypeSignedNote_lift(_ buf: RustBuffer) throws -> SignedNote {
+    return try FfiConverterTypeSignedNote.lift(buf)
 }
 
 #if swift(>=5.8)
 @_documentation(visibility: private)
 #endif
-public func FfiConverterTypeSerializedProof_lower(_ value: SerializedProof) -> RustBuffer {
-    return FfiConverterTypeSerializedProof.lower(value)
+public func FfiConverterTypeSignedNote_lower(_ value: SignedNote) -> RustBuffer {
+    return FfiConverterTypeSignedNote.lower(value)
 }
 
 
@@ -987,13 +1011,11 @@ public enum ProofError {
     
     
     case InvalidSeed
-    case ProofGenerationFailed(errorMessage: String
+    case InvalidKey
+    case InvalidSignature
+    case NoteError(String
     )
-    case VerificationFailed(errorMessage: String
-    )
-    case InvalidNote(errorMessage: String
-    )
-    case SerializationError(errorMessage: String
+    case IntentError(String
     )
 }
 
@@ -1012,17 +1034,13 @@ public struct FfiConverterTypeProofError: FfiConverterRustBuffer {
 
         
         case 1: return .InvalidSeed
-        case 2: return .ProofGenerationFailed(
-            errorMessage: try FfiConverterString.read(from: &buf)
+        case 2: return .InvalidKey
+        case 3: return .InvalidSignature
+        case 4: return .NoteError(
+            try FfiConverterString.read(from: &buf)
             )
-        case 3: return .VerificationFailed(
-            errorMessage: try FfiConverterString.read(from: &buf)
-            )
-        case 4: return .InvalidNote(
-            errorMessage: try FfiConverterString.read(from: &buf)
-            )
-        case 5: return .SerializationError(
-            errorMessage: try FfiConverterString.read(from: &buf)
+        case 5: return .IntentError(
+            try FfiConverterString.read(from: &buf)
             )
 
          default: throw UniffiInternalError.unexpectedEnumCase
@@ -1040,24 +1058,22 @@ public struct FfiConverterTypeProofError: FfiConverterRustBuffer {
             writeInt(&buf, Int32(1))
         
         
-        case let .ProofGenerationFailed(errorMessage):
+        case .InvalidKey:
             writeInt(&buf, Int32(2))
-            FfiConverterString.write(errorMessage, into: &buf)
-            
         
-        case let .VerificationFailed(errorMessage):
+        
+        case .InvalidSignature:
             writeInt(&buf, Int32(3))
-            FfiConverterString.write(errorMessage, into: &buf)
-            
         
-        case let .InvalidNote(errorMessage):
+        
+        case let .NoteError(v1):
             writeInt(&buf, Int32(4))
-            FfiConverterString.write(errorMessage, into: &buf)
+            FfiConverterString.write(v1, into: &buf)
             
         
-        case let .SerializationError(errorMessage):
+        case let .IntentError(v1):
             writeInt(&buf, Int32(5))
-            FfiConverterString.write(errorMessage, into: &buf)
+            FfiConverterString.write(v1, into: &buf)
             
         }
     }
@@ -1087,25 +1103,22 @@ private var initializationResult: InitializationResult = {
     if bindings_contract_version != scaffolding_contract_version {
         return InitializationResult.contractVersionMismatch
     }
-    if (uniffi_proofmanager_checksum_method_proofmanager_create_proof() != 47534) {
+    if (uniffi_proofmanager_checksum_method_proofmanager_create_intent_action() != 51174) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_proofmanager_checksum_method_proofmanager_create_proof_with_commitment() != 10175) {
+    if (uniffi_proofmanager_checksum_method_proofmanager_create_note() != 45218) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_proofmanager_checksum_method_proofmanager_debug_commitment() != 60862) {
+    if (uniffi_proofmanager_checksum_method_proofmanager_generate_address() != 379) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_proofmanager_checksum_method_proofmanager_debug_proof() != 30490) {
+    if (uniffi_proofmanager_checksum_method_proofmanager_generate_keys() != 37455) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_proofmanager_checksum_method_proofmanager_generate_address() != 22832) {
+    if (uniffi_proofmanager_checksum_method_proofmanager_sign_note() != 60978) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_proofmanager_checksum_method_proofmanager_generate_commitment() != 2346) {
-        return InitializationResult.apiChecksumMismatch
-    }
-    if (uniffi_proofmanager_checksum_method_proofmanager_verify_proof() != 7256) {
+    if (uniffi_proofmanager_checksum_method_proofmanager_verify_signature() != 51127) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_proofmanager_checksum_constructor_proofmanager_new() != 10641) {

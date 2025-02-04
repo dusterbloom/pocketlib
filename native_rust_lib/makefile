@@ -55,18 +55,35 @@ check:
 	@echo "$(GREEN)✓ Environment check passed$(RESET)"
 
 # iOS Build and Copy
+# iOS target
 ios: ios-build ios-copy 
 
+# Build target - handles compilation of Rust code
 ios-build:
+	@echo "Building library and generating bindings..."
+	cargo build
+	cargo run --bin uniffi-bindgen generate --library ./target/debug/libproofmanager.dylib --language swift --out-dir ./bindings
+	rustup target add aarch64-apple-ios-sim
 	cargo build --release --target=aarch64-apple-ios-sim
-	xcodebuild -create-xcframework \
-		-library target/aarch64-apple-ios-sim/release/$(LIB_NAME).a \
-		-output "$(IOS_OUTPUT_DIR)/$(IOS_FRAMEWORK_NAME)"
 
+	@echo "Setting up XCFramework..."
+	mv ./bindings/proofmanagerFFI.modulemap ./bindings/module.modulemap
+	rm -rf "ios/ProofManager.xcframework"	
+	@echo "Creating XCFramework..."
+	xcodebuild -create-xcframework \
+		-library ./target/aarch64-apple-ios-sim/release/libproofmanager.a -headers ./bindings \
+		-output "ios/ProofManager.xcframework"
+
+# Copy target - handles moving files to the correct locations
 ios-copy:
-	mkdir -p $(IOS_OUTPUT_DIR)
-	cp -r ios/$(IOS_FRAMEWORK_NAME) $(IOS_OUTPUT_DIR)
-	cp ./bindings/proofmanager.swift $(IOS_OUTPUT_DIR)/
+	@echo "Copying framework to modules..."
+	rm -rf ../modules/proofmanager/ios/ProofManager.xcframework
+	cp -r ios/ProofManager.xcframework ../modules/proofmanager/ios
+	@echo "Cleaning up and copying Swift files..."
+	rm -f ../modules/proofmanager/ios/ProofManager.xcframework/ios-arm64-simulator/Headers/proofmanager.swift
+	rm -f ../modules/proofmanager/ios/proofmanager.swift
+	cp ./bindings/proofmanager.swift ../modules/proofmanager/ios/
+
 
 # Android Build and Copy
 android: android-build android-copy
@@ -108,8 +125,11 @@ android-clean:
 	@echo "$(GREEN)✓ Android clean completed$(RESET)"
 
 ios-clean:
-	rm -rf ./target $(BINDINGS_DIR) $(IOS_OUTPUT_DIR)
-	@echo "$(GREEN)✓ iOS clean completed$(RESET)"
+	@echo "Cleaning build artifacts..."
+	rm -rf ./target
+	rm -rf ./bindings
+	rm -rf ./ios/ProofManager.xcframework
+	rm -rf ../modules/proofmanager/ios/ProofManager.xcframework
 
 # Build Summary
 summary:

@@ -1,178 +1,243 @@
 import ExpoModulesCore
-import Foundation
-import proofmanager
 
 public class ProofManagerModule: Module {
-    // Initialize ProofManager from the generated bindings
-    private lazy var proofManager: ProofManager = {
-        do {
-            print("Swift: Initializing ProofManager")
-            return try ProofManager()
-        } catch {
-            print("Swift: Failed to initialize ProofManager: \(error)")
-            fatalError("Failed to initialize ProofManager: \(error)")
-        }
-    }()
+    // Initialize ProofManager instance
+    private var proofManager: ProofManager?
     
     public func definition() -> ModuleDefinition {
         Name("ProofManager")
         
-        AsyncFunction("generateKeys") { (seedPhrase: String, promise: Promise) in
+        OnCreate {
             do {
-                print("Swift: Generating keys for seedPhrase")
-                let keyPair = try proofManager.generateKeys(seedPhrase: seedPhrase)
-                promise.resolve([
-                    "spendKey": Array(keyPair.spendKey).map { Int($0) },
-                    "viewKey": Array(keyPair.viewKey).map { Int($0) }
-                ])
-                print("Swift: Generated keys successfully")
+                self.proofManager = try ProofManager()
             } catch {
-                print("Swift: Error in generateKeys: \(error)")
-                promise.reject("PROOF_ERROR", error.localizedDescription)
+                print("Failed to initialize ProofManager: \(error)")
             }
         }
         
-        AsyncFunction("generateAddress") { (spendKeyBytes: [Int], index: Int, promise: Promise) in
+        AsyncFunction("generateKeys") { (seedPhrase: String, promise: Promise) in
+            guard let pm = self.proofManager else {
+                promise.reject(NSError(domain: "", code: -1, userInfo: [NSLocalizedDescriptionKey: "ProofManager not initialized"]))
+                return
+            }
+            
             do {
-                print("Swift: Generating address for index=\(index)")
-                let address = try proofManager.generateAddress(
-                    spendKeyBytes: Data(spendKeyBytes.map { UInt8($0) }),
-                    index: UInt32(index)
-                )
-                
-                let result = [
-                    "diversifier": Array(address.diversifier).map { Int($0) },
-                    "transmissionKey": Array(address.transmissionKey).map { Int($0) },
-                    "clueKey": Array(address.clueKey).map { Int($0) }
-                ]
-                promise.resolve(result)
-                print("Swift: Generated address successfully")
+                let result = try pm.generateKeys(seedPhrase: seedPhrase)
+                promise.resolve([
+                    "spendKey": Array(result.spendKey),
+                    "viewKey": Array(result.viewKey)
+                ])
             } catch {
-                print("Swift: Error in generateAddress: \(error)")
-                promise.reject("PROOF_ERROR", error.localizedDescription)
+                promise.reject(NSError(domain: "", code: -1, userInfo: [NSLocalizedDescriptionKey: error.localizedDescription]))
+            }
+        }
+        
+        AsyncFunction("generateAddress") { (args: [String: Any], promise: Promise) in
+            guard let pm = self.proofManager else {
+                promise.reject(NSError(domain: "", code: -1, userInfo: [NSLocalizedDescriptionKey: "ProofManager not initialized"]))
+                return
+            }
+            
+            guard let spendKeyArray = args["spendKey"] as? [Int],
+                  let index = args["index"] as? Int else {
+                promise.reject(NSError(domain: "", code: -1, userInfo: [NSLocalizedDescriptionKey: "Invalid arguments"]))
+                return
+            }
+            
+            do {
+                let spendKey = Data(spendKeyArray.map { UInt8($0) })
+                let result = try pm.generateAddress(spendKeyBytes: spendKey, index: UInt32(index))
+                
+                promise.resolve([
+                    "diversifier": Array(result.diversifier),
+                    "transmissionKey": Array(result.transmissionKey),
+                    "clueKey": Array(result.clueKey)
+                ])
+            } catch {
+                promise.reject(NSError(domain: "", code: -1, userInfo: [NSLocalizedDescriptionKey: error.localizedDescription]))
             }
         }
         
         AsyncFunction("createNote") { (args: [String: Any], promise: Promise) in
+            guard let pm = self.proofManager else {
+                promise.reject(NSError(domain: "", code: -1, userInfo: [NSLocalizedDescriptionKey: "ProofManager not initialized"]))
+                return
+            }
+            
             do {
-                print("Swift: Creating note")
-                guard let debtorMap = args["debtorAddress"] as? [String: [Int]],
-                      let creditorMap = args["creditorAddress"] as? [String: [Int]],
-                      let amount = args["amount"] as? NSNumber,
-                      let assetId = args["assetId"] as? NSNumber else {
-                    throw ProofError.invalidKey
+                // Convert addresses from JS format
+                func convertAddress(_ addressDict: [String: Any]) throws -> AddressData {
+                    guard let diversifier = addressDict["diversifier"] as? [Int],
+                          let transmissionKey = addressDict["transmissionKey"] as? [Int],
+                          let clueKey = addressDict["clueKey"] as? [Int] else {
+                        throw NSError(domain: "", code: -1, userInfo: [NSLocalizedDescriptionKey: "Invalid address format"])
+                    }
+                    
+                    return AddressData(
+                        diversifier: Data(diversifier.map { UInt8($0) }),
+                        transmissionKey: Data(transmissionKey.map { UInt8($0) }),
+                        clueKey: Data(clueKey.map { UInt8($0) })
+                    )
                 }
                 
-                let debtorAddress = AddressData(
-                    diversifier: Data(debtorMap["diversifier"]!.map { UInt8($0) }),
-                    transmissionKey: Data(debtorMap["transmissionKey"]!.map { UInt8($0) }),
-                    clueKey: Data(debtorMap["clueKey"]!.map { UInt8($0) })
-                )
+                guard let debtorAddressDict = args["debtorAddress"] as? [String: Any],
+                      let creditorAddressDict = args["creditorAddress"] as? [String: Any],
+                      let amount = args["amount"] as? Int,
+                      let assetId = args["assetId"] as? Int else {
+                    throw NSError(domain: "", code: -1, userInfo: [NSLocalizedDescriptionKey: "Invalid arguments"])
+                }
                 
-                let creditorAddress = AddressData(
-                    diversifier: Data(creditorMap["diversifier"]!.map { UInt8($0) }),
-                    transmissionKey: Data(creditorMap["transmissionKey"]!.map { UInt8($0) }),
-                    clueKey: Data(creditorMap["clueKey"]!.map { UInt8($0) })
-                )
+                let debtorAddress = try convertAddress(debtorAddressDict)
+                let creditorAddress = try convertAddress(creditorAddressDict)
                 
-                let note = try proofManager.createNote(
+                let result = try pm.createNote(
                     debtorAddress: debtorAddress,
                     creditorAddress: creditorAddress,
-                    amount: UInt64(truncating: amount),
-                    assetId: UInt64(truncating: assetId)
+                    amount: UInt64(amount),
+                    assetId: UInt64(assetId)
                 )
                 
-                let result: [String: Any] = [
+                promise.resolve([
+                    "commitment": Array(result.commitment),
                     "debtorAddress": [
-                        "diversifier": Array(note.debtorAddress.diversifier).map { Int($0) },
-                        "transmissionKey": Array(note.debtorAddress.transmissionKey).map { Int($0) },
-                        "clueKey": Array(note.debtorAddress.clueKey).map { Int($0) }
+                        "diversifier": Array(result.debtorAddress.diversifier),
+                        "transmissionKey": Array(result.debtorAddress.transmissionKey),
+                        "clueKey": Array(result.debtorAddress.clueKey)
                     ],
                     "creditorAddress": [
-                        "diversifier": Array(note.creditorAddress.diversifier).map { Int($0) },
-                        "transmissionKey": Array(note.creditorAddress.transmissionKey).map { Int($0) },
-                        "clueKey": Array(note.creditorAddress.clueKey).map { Int($0) }
-                    ],
-                    "amount": note.amount,
-                    "assetId": note.assetId,
-                    "commitment": Array(note.commitment).map { Int($0) }
-                ]
-                promise.resolve(result)
-                print("Swift: Created note successfully")
+                        "diversifier": Array(result.creditorAddress.diversifier),
+                        "transmissionKey": Array(result.creditorAddress.transmissionKey),
+                        "clueKey": Array(result.creditorAddress.clueKey)
+                    ]
+                ])
             } catch {
-                print("Swift: Error in createNote: \(error)")
-                promise.reject("PROOF_ERROR", error.localizedDescription)
+                promise.reject(NSError(domain: "", code: -1, userInfo: [NSLocalizedDescriptionKey: error.localizedDescription]))
             }
         }
         
-        AsyncFunction("signNote") { (seedPhrase: String, noteMap: [String: Any], promise: Promise) in
+        AsyncFunction("signNote") { (args: [String: Any], promise: Promise) in
+            guard let pm = self.proofManager else {
+                promise.reject(NSError(domain: "", code: -1, userInfo: [NSLocalizedDescriptionKey: "ProofManager not initialized"]))
+                return
+            }
+            
             do {
-                print("Swift: Signing note")
-                guard let debtorMap = noteMap["debtorAddress"] as? [String: [Int]],
-                      let creditorMap = noteMap["creditorAddress"] as? [String: [Int]],
-                      let amount = noteMap["amount"] as? NSNumber,
-                      let assetId = noteMap["assetId"] as? NSNumber,
-                      let commitment = noteMap["commitment"] as? [Int] else {
-                    throw ProofError.invalidKey
+                guard let seedPhrase = args["seedPhrase"] as? String,
+                      let noteDict = args["note"] as? [String: Any] else {
+                    throw NSError(domain: "", code: -1, userInfo: [NSLocalizedDescriptionKey: "Invalid arguments"])
                 }
                 
-                let note = Note(
-                    debtorAddress: AddressData(
-                        diversifier: Data(debtorMap["diversifier"]!.map { UInt8($0) }),
-                        transmissionKey: Data(debtorMap["transmissionKey"]!.map { UInt8($0) }),
-                        clueKey: Data(debtorMap["clueKey"]!.map { UInt8($0) })
-                    ),
-                    creditorAddress: AddressData(
-                        diversifier: Data(creditorMap["diversifier"]!.map { UInt8($0) }),
-                        transmissionKey: Data(creditorMap["transmissionKey"]!.map { UInt8($0) }),
-                        clueKey: Data(creditorMap["clueKey"]!.map { UInt8($0) })
-                    ),
-                    amount: UInt64(truncating: amount),
-                    assetId: UInt64(truncating: assetId),
-                    commitment: Data(commitment.map { UInt8($0) })
-                )
+                // Convert note from JS format
+                func convertNote(_ noteDict: [String: Any]) throws -> Note {
+                    guard let commitment = (noteDict["commitment"] as? [Int])?.map({ UInt8($0) }),
+                          let debtorAddressDict = noteDict["debtorAddress"] as? [String: Any],
+                          let creditorAddressDict = noteDict["creditorAddress"] as? [String: Any],
+                          let amount = noteDict["amount"] as? Int,
+                          let assetId = noteDict["assetId"] as? Int else {
+                        throw NSError(domain: "", code: -1, userInfo: [NSLocalizedDescriptionKey: "Invalid note format"])
+                    }
+                    
+                    func convertAddress(_ addressDict: [String: Any]) throws -> AddressData {
+                        guard let diversifier = (addressDict["diversifier"] as? [Int])?.map({ UInt8($0) }),
+                              let transmissionKey = (addressDict["transmissionKey"] as? [Int])?.map({ UInt8($0) }),
+                              let clueKey = (addressDict["clueKey"] as? [Int])?.map({ UInt8($0) }) else {
+                            throw NSError(domain: "", code: -1, userInfo: [NSLocalizedDescriptionKey: "Invalid address format"])
+                        }
+                        
+                        return AddressData(
+                            diversifier: Data(diversifier),
+                            transmissionKey: Data(transmissionKey),
+                            clueKey: Data(clueKey)
+                        )
+                    }
+                    
+                    return Note(
+                        debtorAddress: try convertAddress(debtorAddressDict),
+                        creditorAddress: try convertAddress(creditorAddressDict),
+                        amount: UInt64(amount),
+                        assetId: UInt64(assetId),
+                        commitment: Data(commitment)
+                    )
+                }
                 
-                let signedNote = try proofManager.signNote(seedPhrase: seedPhrase, note: note)
-                let result: [String: Any] = [
+                let note = try convertNote(noteDict)
+                let result = try pm.signNote(seedPhrase: seedPhrase, note: note)
+                
+                promise.resolve([
+                    "signature": Array(result.signature),
+                    "verificationKey": Array(result.verificationKey),
                     "note": [
+                        "commitment": Array(result.note.commitment),
                         "debtorAddress": [
-                            "diversifier": Array(signedNote.note.debtorAddress.diversifier).map { Int($0) },
-                            "transmissionKey": Array(signedNote.note.debtorAddress.transmissionKey).map { Int($0) },
-                            "clueKey": Array(signedNote.note.debtorAddress.clueKey).map { Int($0) }
+                            "diversifier": Array(result.note.debtorAddress.diversifier),
+                            "transmissionKey": Array(result.note.debtorAddress.transmissionKey),
+                            "clueKey": Array(result.note.debtorAddress.clueKey)
                         ],
                         "creditorAddress": [
-                            "diversifier": Array(signedNote.note.creditorAddress.diversifier).map { Int($0) },
-                            "transmissionKey": Array(signedNote.note.creditorAddress.transmissionKey).map { Int($0) },
-                            "clueKey": Array(signedNote.note.creditorAddress.clueKey).map { Int($0) }
-                        ],
-                        "amount": signedNote.note.amount,
-                        "assetId": signedNote.note.assetId,
-                        "commitment": Array(signedNote.note.commitment).map { Int($0) }
-                    ],
-                    "signature": Array(signedNote.signature).map { Int($0) },
-                    "verificationKey": Array(signedNote.verificationKey).map { Int($0) }
-                ]
-                promise.resolve(result)
-                print("Swift: Signed note successfully")
+                            "diversifier": Array(result.note.creditorAddress.diversifier),
+                            "transmissionKey": Array(result.note.creditorAddress.transmissionKey),
+                            "clueKey": Array(result.note.creditorAddress.clueKey)
+                        ]
+                    ]
+                ])
             } catch {
-                print("Swift: Error in signNote: \(error)")
-                promise.reject("PROOF_ERROR", error.localizedDescription)
+                promise.reject(NSError(domain: "", code: -1, userInfo: [NSLocalizedDescriptionKey: error.localizedDescription]))
             }
         }
         
-        AsyncFunction("verifySignature") { (verificationKey: [Int], commitment: [Int], signature: [Int], promise: Promise) in
+        AsyncFunction("verifySignature") { (args: [String: Any], promise: Promise) in
+            guard let pm = self.proofManager else {
+                promise.reject(NSError(domain: "", code: -1, userInfo: [NSLocalizedDescriptionKey: "ProofManager not initialized"]))
+                return
+            }
+            
             do {
-                print("Swift: Verifying signature")
-                let result = try proofManager.verifySignature(
-                    verificationKeyBytes: Data(verificationKey.map { UInt8($0) }),
-                    commitment: Data(commitment.map { UInt8($0) }),
-                    signature: Data(signature.map { UInt8($0) })
+                guard let verificationKey = (args["verificationKey"] as? [Int])?.map({ UInt8($0) }),
+                      let commitment = (args["commitment"] as? [Int])?.map({ UInt8($0) }),
+                      let signature = (args["signature"] as? [Int])?.map({ UInt8($0) }) else {
+                    throw NSError(domain: "", code: -1, userInfo: [NSLocalizedDescriptionKey: "Invalid arguments"])
+                }
+                
+                let result = try pm.verifySignature(
+                    verificationKeyBytes: Data(verificationKey),
+                    commitment: Data(commitment),
+                    signature: Data(signature)
                 )
+                
                 promise.resolve(result)
-                print("Swift: Verified signature successfully: \(result)")
             } catch {
-                print("Swift: Error in verifySignature: \(error)")
-                promise.reject("PROOF_ERROR", error.localizedDescription)
+                promise.reject(NSError(domain: "", code: -1, userInfo: [NSLocalizedDescriptionKey: error.localizedDescription]))
+            }
+        }
+        
+        AsyncFunction("createIntentAction") { (args: [String: Any], promise: Promise) in
+            guard let pm = self.proofManager else {
+                promise.reject(NSError(domain: "", code: -1, userInfo: [NSLocalizedDescriptionKey: "ProofManager not initialized"]))
+                return
+            }
+            
+            do {
+                guard let debtorSeedPhrase = (args["debtorSeedPhrase"] as? [Int])?.map({ UInt8($0) }),
+                      let rseedRandomness = (args["rseedRandomness"] as? [Int])?.map({ UInt8($0) }),
+                      let debtorIndex = args["debtorIndex"] as? Int,
+                      let creditorAddr = args["creditorAddr"] as? String,
+                      let amount = args["amount"] as? Int,
+                      let assetId = args["assetId"] as? Int else {
+                    throw NSError(domain: "", code: -1, userInfo: [NSLocalizedDescriptionKey: "Invalid arguments"])
+                }
+                
+                let result = try pm.createIntentAction(
+                    debtorSeedPhrase: Data(debtorSeedPhrase),
+                    rseedRandomness: Data(rseedRandomness),
+                    debtorIndex: UInt32(debtorIndex),
+                    creditorAddr: creditorAddr,
+                    amount: UInt64(amount),
+                    assetId: UInt64(assetId)
+                )
+                
+                promise.resolve(result)
+            } catch {
+                promise.reject(NSError(domain: "", code: -1, userInfo: [NSLocalizedDescriptionKey: error.localizedDescription]))
             }
         }
     }
