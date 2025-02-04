@@ -1,7 +1,21 @@
 {
-    "name": "proofmanager",
-    "version": "1.0.0",
-    "main": "index",
-    "module": "index",
-    "types": "src/ProofManager.types.ts"
+  "name": "proofmanager",
+  "version": "1.0.0",
+  "main": "index",
+  "module": "index",
+  "types": "src/ProofManager.types.ts",
+  "expo": {
+    "name": "proofmanager",  
+    "platforms": ["ios", "android"],  
+    "autolinking": {
+      "ios": {
+        "cocoapods": "ios/"
+      }
+    }
+  },
+  "peerDependencies": {
+    "expo": "*",
+    "react": "*",
+    "react-native": "*"
   }
+}

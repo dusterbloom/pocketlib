@@ -11,7 +11,9 @@ Pod::Spec.new do |s|
   
   s.dependency 'ExpoModulesCore'
 
-  # Change to use the XCFramework instead of the static library
+  # Source files (including headers)
+  s.source_files = "*.{h,m,mm,swift,hpp,cpp}"
+  
   s.pod_target_xcconfig = {
     'DEFINES_MODULE' => 'YES',
     'SWIFT_COMPILATION_MODE' => 'wholemodule',
@@ -27,10 +29,43 @@ Pod::Spec.new do |s|
         'MODULEMAP_FILE' => '$(PODS_TARGET_SRCROOT)/module.modulemap'
   }
 
-  
-  s.source_files = "*.{h,m,mm,swift,hpp,cpp}"
+
   s.ios.vendored_frameworks = 'ProofManager.xcframework'
 end
+
+# Pod::Spec.new do |s|
+#   s.name           = 'ProofManager'
+#   s.version        = '1.0.0'
+#   s.summary        = 'Zero Knowledge Proof Manager'
+#   s.description    = 'ZK proof generation and validation'
+#   s.author         = ''
+#   s.homepage       = 'https://docs.expo.dev/modules/'
+#   s.platform       = :ios, '18.2'
+#   s.source         = { git: '' }
+#   s.static_framework = true
+  
+#   s.dependency 'ExpoModulesCore'
+
+  # # Change to use the XCFramework instead of the static library
+  # s.pod_target_xcconfig = {
+  #   'DEFINES_MODULE' => 'YES',
+  #   'SWIFT_COMPILATION_MODE' => 'wholemodule',
+  #   'EXCLUDED_ARCHS' => 'x86_64',
+  #   'LIBRARY_SEARCH_PATHS' => [
+  #           '$(PODS_TARGET_SRCROOT)/Proof.xcframework/ios-arm64',
+  #           '$(PODS_TARGET_SRCROOT)/Proof.xcframework/ios-arm64-simulator'
+  #       ],
+  #       'HEADER_SEARCH_PATHS' => [
+  #           '$(PODS_TARGET_SRCROOT)/Proof.xcframework/ios-arm64/Headers',
+  #           '$(PODS_TARGET_SRCROOT)/Proof.xcframework/ios-arm64-simulator/Headers'
+  #       ],
+  #       'MODULEMAP_FILE' => '$(PODS_TARGET_SRCROOT)/module.modulemap'
+  # }
+
+  
+  # s.source_files = "*.{h,m,mm,swift,hpp,cpp}"
+  # s.ios.vendored_frameworks = 'ProofManager.xcframework'
+# end
 
 
 # Peunmbra style - > ld: symbol(s) not found for architecture arm64

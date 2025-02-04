@@ -64,14 +64,16 @@ ios-build:
 	cargo build
 	cargo run --bin uniffi-bindgen generate --library ./target/debug/libproofmanager.dylib --language swift --out-dir ./bindings
 	rustup target add aarch64-apple-ios-sim
+	rustup target add aarch64-apple-ios
 	cargo build --release --target=aarch64-apple-ios-sim
+	cargo build --release --target=aarch64-apple-ios
 
 	@echo "Setting up XCFramework..."
-	mv ./bindings/proofmanagerFFI.modulemap ./bindings/module.modulemap
 	rm -rf "ios/ProofManager.xcframework"	
 	@echo "Creating XCFramework..."
 	xcodebuild -create-xcframework \
 		-library ./target/aarch64-apple-ios-sim/release/libproofmanager.a -headers ./bindings \
+		-library ./target/aarch64-apple-ios/release/libproofmanager.a -headers ./bindings \
 		-output "ios/ProofManager.xcframework"
 
 # Copy target - handles moving files to the correct locations
@@ -80,10 +82,10 @@ ios-copy:
 	rm -rf ../modules/proofmanager/ios/ProofManager.xcframework
 	cp -r ios/ProofManager.xcframework ../modules/proofmanager/ios
 	@echo "Cleaning up and copying Swift files..."
+	rm -f ../modules/proofmanager/ios/ProofManager.xcframework/ios-arm64/Headers/proofmanager.swift
 	rm -f ../modules/proofmanager/ios/ProofManager.xcframework/ios-arm64-simulator/Headers/proofmanager.swift
 	rm -f ../modules/proofmanager/ios/proofmanager.swift
 	cp ./bindings/proofmanager.swift ../modules/proofmanager/ios/
-
 
 # Android Build and Copy
 android: android-build android-copy

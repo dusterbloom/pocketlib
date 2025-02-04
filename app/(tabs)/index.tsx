@@ -17,7 +17,7 @@ import {
   type SignedNote,
   type NoteCreateParams,
   type CreateIntentActionParams
-} from '../../modules/proofmanager/index';
+} from '@/modules/proofmanager/index';
 
 import { Text } from "react-native";
 import { bytesToHex } from '@/utils/hex';
