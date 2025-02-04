@@ -46,7 +46,7 @@ class ProofManagerModule : Module() {
     ): Boolean
 
     private external fun createIntentActionNative(
-        debtorSeedPhase: ByteArray,
+        debtorSeedPhrase: ByteArray,
         rseedRandomness: ByteArray,
         debtorIndex: Int,
         creditorAddr: String,
@@ -218,8 +218,8 @@ class ProofManagerModule : Module() {
 
         AsyncFunction("createIntentAction") { args: Map<String, Any>, promise: Promise ->
             try {
-                val debtorSeedPhase = (args["debtorSeedPhase"] as? List<Int>)?.map { it.toByte() }?.toByteArray()
-                    ?: throw IllegalArgumentException("Invalid debtorSeedPhase")
+                val debtorSeedPhrase = (args["debtorSeedPhrase"] as? List<Int>)?.map { it.toByte() }?.toByteArray()
+                    ?: throw IllegalArgumentException("Invalid debtorSeedPhrase")
                 val rseedRandomness = (args["rseedRandomness"] as? List<Int>)?.map { it.toByte() }?.toByteArray()
                     ?: throw IllegalArgumentException("Invalid rseedRandomness")
                 val debtorIndex = (args["debtorIndex"] as? Number)?.toInt()
@@ -232,7 +232,7 @@ class ProofManagerModule : Module() {
                     ?: throw IllegalArgumentException("Invalid assetId")
 
                 val result = createIntentActionNative(
-                    debtorSeedPhase,
+                    debtorSeedPhrase,
                     rseedRandomness,
                     debtorIndex,
                     creditorAddr,
