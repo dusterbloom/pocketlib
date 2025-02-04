@@ -35,8 +35,6 @@ use decaf377_rdsa::{Signature, SpendAuth, VerificationKey};
 use rand::RngCore;
 use serde::{Deserialize, Serialize};
 
-pub mod r1cs;
-
 uniffi::setup_scaffolding!();
 
 // (2) Initialize the Android logger once at startup (only on Android).
