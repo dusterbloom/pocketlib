@@ -753,7 +753,7 @@ internal interface UniffiLib : Library {
     ): Unit
     fun uniffi_proofmanager_fn_constructor_proofmanager_new(uniffi_out_err: UniffiRustCallStatus, 
     ): Pointer
-    fun uniffi_proofmanager_fn_method_proofmanager_create_intent_action(`ptr`: Pointer,`debtorSeedPhase`: RustBuffer.ByValue,`rseedRandomness`: RustBuffer.ByValue,`debtorIndex`: Int,`creditorAddr`: RustBuffer.ByValue,`amount`: Long,`assetId`: Long,uniffi_out_err: UniffiRustCallStatus, 
+    fun uniffi_proofmanager_fn_method_proofmanager_create_intent_action(`ptr`: Pointer,`debtorSeedPhrase`: RustBuffer.ByValue,`rseedRandomness`: RustBuffer.ByValue,`debtorIndex`: Int,`creditorAddr`: RustBuffer.ByValue,`amount`: Long,`assetId`: Long,uniffi_out_err: UniffiRustCallStatus, 
     ): RustBuffer.ByValue
     fun uniffi_proofmanager_fn_method_proofmanager_create_note(`ptr`: Pointer,`debtorAddress`: RustBuffer.ByValue,`creditorAddress`: RustBuffer.ByValue,`amount`: Long,`assetId`: Long,uniffi_out_err: UniffiRustCallStatus, 
     ): RustBuffer.ByValue
@@ -908,7 +908,7 @@ private fun uniffiCheckContractApiVersion(lib: UniffiLib) {
 
 @Suppress("UNUSED_PARAMETER")
 private fun uniffiCheckApiChecksums(lib: UniffiLib) {
-    if (lib.uniffi_proofmanager_checksum_method_proofmanager_create_intent_action() != 34697.toShort()) {
+    if (lib.uniffi_proofmanager_checksum_method_proofmanager_create_intent_action() != 51174.toShort()) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
     if (lib.uniffi_proofmanager_checksum_method_proofmanager_create_note() != 45218.toShort()) {
@@ -1285,7 +1285,7 @@ private class JavaLangRefCleanable(
 }
 public interface ProofManagerInterface {
     
-    fun `createIntentAction`(`debtorSeedPhase`: kotlin.ByteArray, `rseedRandomness`: kotlin.ByteArray, `debtorIndex`: kotlin.UInt, `creditorAddr`: kotlin.String, `amount`: kotlin.ULong, `assetId`: kotlin.ULong): kotlin.String
+    fun `createIntentAction`(`debtorSeedPhrase`: kotlin.ByteArray, `rseedRandomness`: kotlin.ByteArray, `debtorIndex`: kotlin.UInt, `creditorAddr`: kotlin.String, `amount`: kotlin.ULong, `assetId`: kotlin.ULong): kotlin.String
     
     fun `createNote`(`debtorAddress`: AddressData, `creditorAddress`: AddressData, `amount`: kotlin.ULong, `assetId`: kotlin.ULong): Note
     
@@ -1389,12 +1389,12 @@ open class ProofManager: Disposable, AutoCloseable, ProofManagerInterface {
     }
 
     
-    @Throws(ProofException::class)override fun `createIntentAction`(`debtorSeedPhase`: kotlin.ByteArray, `rseedRandomness`: kotlin.ByteArray, `debtorIndex`: kotlin.UInt, `creditorAddr`: kotlin.String, `amount`: kotlin.ULong, `assetId`: kotlin.ULong): kotlin.String {
+    @Throws(ProofException::class)override fun `createIntentAction`(`debtorSeedPhrase`: kotlin.ByteArray, `rseedRandomness`: kotlin.ByteArray, `debtorIndex`: kotlin.UInt, `creditorAddr`: kotlin.String, `amount`: kotlin.ULong, `assetId`: kotlin.ULong): kotlin.String {
             return FfiConverterString.lift(
     callWithPointer {
     uniffiRustCallWithError(ProofException) { _status ->
     UniffiLib.INSTANCE.uniffi_proofmanager_fn_method_proofmanager_create_intent_action(
-        it, FfiConverterByteArray.lower(`debtorSeedPhase`),FfiConverterByteArray.lower(`rseedRandomness`),FfiConverterUInt.lower(`debtorIndex`),FfiConverterString.lower(`creditorAddr`),FfiConverterULong.lower(`amount`),FfiConverterULong.lower(`assetId`),_status)
+        it, FfiConverterByteArray.lower(`debtorSeedPhrase`),FfiConverterByteArray.lower(`rseedRandomness`),FfiConverterUInt.lower(`debtorIndex`),FfiConverterString.lower(`creditorAddr`),FfiConverterULong.lower(`amount`),FfiConverterULong.lower(`assetId`),_status)
 }
     }
     )

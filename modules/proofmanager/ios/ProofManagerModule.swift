@@ -110,8 +110,10 @@ public class ProofManagerModule: Module {
                         "diversifier": Array(result.creditorAddress.diversifier),
                         "transmissionKey": Array(result.creditorAddress.transmissionKey),
                         "clueKey": Array(result.creditorAddress.clueKey)
-                    ]
-                ])
+                      ],
+                        "amount": Int(amount),   // <== Added
+                        "assetId": Int(assetId)   // <== Added
+                    ])
             } catch {
                 promise.reject(NSError(domain: "", code: -1, userInfo: [NSLocalizedDescriptionKey: error.localizedDescription]))
             }
@@ -162,32 +164,30 @@ public class ProofManagerModule: Module {
                     )
                 }
                 
-                let note = try pm.createNote(
-                        debtorAddress: debtorAddress,
-                        creditorAddress: creditorAddress,
-                        amount: UInt64(amount),
-                        assetId: UInt64(assetId)
-                    )
-                    
-                    promise.resolve([
-                        "commitment": Array(note.commitment),
+                let note = try convertNote(noteDict)
+                let result = try pm.signNote(seedPhrase: seedPhrase, note: note)
+                
+                promise.resolve([
+                    "signature": Array(result.signature),
+                    "verificationKey": Array(result.verificationKey),
+                    "note": [
+                        "commitment": Array(result.note.commitment),
                         "debtorAddress": [
-                            "diversifier": Array(note.debtor_address.diversifier),
-                            "transmissionKey": Array(note.debtor_address.transmission_key),
-                            "clueKey": Array(note.debtor_address.clue_key)
+                            "diversifier": Array(result.note.debtorAddress.diversifier),
+                            "transmissionKey": Array(result.note.debtorAddress.transmissionKey),
+                            "clueKey": Array(result.note.debtorAddress.clueKey)
                         ],
                         "creditorAddress": [
-                            "diversifier": Array(note.creditor_address.diversifier),
-                            "transmissionKey": Array(note.creditor_address.transmission_key),
-                            "clueKey": Array(note.creditor_address.clue_key)
-                        ],
-                        "amount": Int(note.amount),     // <== Include the amount
-                        "assetId": Int(note.asset_id)     // <== Include the asset ID
-                    ])
-                } catch {
-                    promise.reject(NSError(domain: "", code: -1, userInfo: [NSLocalizedDescriptionKey: error.localizedDescription]))
-                }
+                            "diversifier": Array(result.note.creditorAddress.diversifier),
+                            "transmissionKey": Array(result.note.creditorAddress.transmissionKey),
+                            "clueKey": Array(result.note.creditorAddress.clueKey)
+                        ]
+                    ]
+                ])
+            } catch {
+                promise.reject(NSError(domain: "", code: -1, userInfo: [NSLocalizedDescriptionKey: error.localizedDescription]))
             }
+        }
         
         AsyncFunction("verifySignature") { (args: [String: Any], promise: Promise) in
             guard let pm = self.proofManager else {
