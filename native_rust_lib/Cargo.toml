@@ -29,22 +29,24 @@ ark-serialize                    = { version = "0.4.0", default-features = false
 ark-r1cs-std                     = { version = "0.4.0", default-features = false }
 ark-relations                    = { version = "0.4.0", default-features = false }
 ark-snark                        = { version = "0.4.0", default-features = false }
+arkworks-gramine                 = { git = "https://github.com/informalsystems/cycles-sandbox.git", branch = "dangush/fork-deps", default-features = false }
 base64                           = { version = "0.21.7", default-features = false }
 blake2b_simd                     = { version = "1.0.2", default-features = false }
-decaf377                         = { version = "0.10.1", default-features = true }
-decaf377-rdsa                    = { version = "0.11.0", default-features = true }
-decaf377-fmd                     = { version = "0.80.9", default-features = false }
-decaf377-ka                      = { version = "0.80.9", default-features = false }
+decaf377                         = { git = "https://github.com/hu55a1n1/decaf377.git" }
+decaf377-rdsa                    = { git = "https://github.com/dangush/decaf377-rdsa.git", version = "0.11.0", default-features = false }
 hex                              = { version = "0.4.3", default-features = false }
 once_cell                        = { version = "1.20.2", default-features = false }
-penumbra-asset                   = { version = "0.80.9", default-features = true }
-penumbra-keys                    = { version = "0.80.9", default-features = true }
-penumbra-proof-params            = { version = "0.80.9", default-features = false }
-penumbra-num                     = { version = "0.80.9", default-features = false }
-penumbra-proto                   = { version = "0.80.9", default-features = false }
-penumbra-shielded-pool           = { version = "0.80.9", default-features = false }
-penumbra-tct                     = { version = "0.80.9", default-features = false }
-poseidon377                      = { version = "1.2.0", default-features = false }
+decaf377-fmd                     = { git = "https://github.com/dangush/penumbra", branch = "v0.80.9-fork", default-features = false  }
+decaf377-ka                      = { git = "https://github.com/dangush/penumbra", branch = "v0.80.9-fork", default-features = false  }
+penumbra-asset                   = { git = "https://github.com/dangush/penumbra", branch = "v0.80.9-fork", default-features = false  }
+penumbra-keys                    = { git = "https://github.com/dangush/penumbra", branch = "v0.80.9-fork", default-features = false  }
+penumbra-num                     = { git = "https://github.com/dangush/penumbra", branch = "v0.80.9-fork", default-features = false  }
+penumbra-proof-params            = { git = "https://github.com/dangush/penumbra", branch = "v0.80.9-fork", default-features = false  }
+penumbra-proto                   = { git = "https://github.com/dangush/penumbra", branch = "v0.80.9-fork", default-features = false  }
+penumbra-shielded-pool           = { git = "https://github.com/dangush/penumbra", branch = "v0.80.9-fork", default-features = false  }
+penumbra-sct                     = { git = "https://github.com/dangush/penumbra", branch = "v0.80.9-fork", default-features = false  }
+penumbra-tct                     = { git = "https://github.com/dangush/penumbra", branch = "v0.80.9-fork", default-features = false  }
+poseidon377                      = { git = "https://github.com/dangush/poseidon377.git", default-features = false }
 rand_core                        = { version = "0.6.4", default-features = false }
 serde                            = { version = "1.0.216", features = ["derive"], default-features = false }
 tracing                          = { version = "0.1.41", default-features = false }
@@ -54,19 +56,6 @@ cosmwasm-std = "2.2.0"
 
 [dev-dependencies]
 proptest                         = { version = "1" }
-penumbra-num                     = { version = "0.80.9", default-features = false }
-
-[patch.crates-io]
-decaf377-fmd                     = { git = "https://github.com/penumbra-zone/penumbra.git", tag = "v0.80.9" }
-decaf377-ka                      = { git = "https://github.com/penumbra-zone/penumbra.git", tag = "v0.80.9" }
-penumbra-asset                   = { git = "https://github.com/penumbra-zone/penumbra.git", tag = "v0.80.9" }
-penumbra-keys                    = { git = "https://github.com/penumbra-zone/penumbra.git", tag = "v0.80.9" }
-penumbra-num                     = { git = "https://github.com/penumbra-zone/penumbra.git", tag = "v0.80.9" }
-penumbra-proof-params            = { git = "https://github.com/penumbra-zone/penumbra.git", tag = "v0.80.9" }
-penumbra-proto                   = { git = "https://github.com/penumbra-zone/penumbra.git", tag = "v0.80.9" }
-penumbra-shielded-pool           = { git = "https://github.com/penumbra-zone/penumbra.git", tag = "v0.80.9" }
-penumbra-sct                     = { git = "https://github.com/penumbra-zone/penumbra.git", tag = "v0.80.9" }
-penumbra-tct                     = { git = "https://github.com/penumbra-zone/penumbra.git", tag = "v0.80.9" }
 
 
 [build-dependencies]

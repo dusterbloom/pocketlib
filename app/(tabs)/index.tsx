@@ -65,7 +65,7 @@ export default function HomeScreen() {
         console.log('\n=== Starting ProofManager Flow ===');
 
         // Test seed phrases
-        const debtorPhrase = 'garage advice weekend this dose mango sign horse tool torch mosquito repeat sentence valid scheme pull punch need prosper build actor say cancel allow';
+        const debtorPhrase = 'grid creek office smoke grid creek office smoke grid creek office smoke grid creek office smoke grid creek office smoke grid creek office shop';
         const creditorPhrase = 'word word word word word word word word word word word word';
 
         // debug('Seed Phrases', { debtorPhrase, creditorPhrase });

@@ -32,17 +32,10 @@ use decaf377_fmd as fmd;
 use decaf377_ka as ka;
 use decaf377_rdsa::{Signature, SpendAuth, VerificationKey};
 
-
 use rand::RngCore;
 use serde::{Deserialize, Serialize};
 
-pub mod note;
-pub mod r1cs;
-
-
 uniffi::setup_scaffolding!();
-
-
 
 // (2) Initialize the Android logger once at startup (only on Android).
 #[cfg(target_os = "android")]
@@ -233,7 +226,7 @@ impl ProofManager {
         let mut rseed_bytes = [0u8; 32];
         rng.fill_bytes(&mut rseed_bytes);
 
-        let note = note::Note::from_parts(debtor_addr, creditor_addr, value, Rseed(rseed_bytes))
+        let note = arkworks_gramine::note::Note::from_parts(debtor_addr, creditor_addr, value, Rseed(rseed_bytes))
             .map_err(|e| ProofError::NoteError(e.to_string()))?;
 
         let commitment = note.commit().0.to_bytes();
@@ -303,7 +296,7 @@ impl ProofManager {
             .map_err(|_| ProofError::InvalidKey)?;
         rust_log!("Successfully parsed creditor address {:?}", creditor_address);
 
-        let note = note::Note::from_parts(
+        let note = arkworks_gramine::note::Note::from_parts(
             debtor_addr.clone(),
             creditor_address,
             value,
@@ -610,7 +603,7 @@ pub extern "system" fn Java_expo_modules_proofmanager_ProofManagerModule_createN
 
         // Create the note using the Note::from_parts constructor
         let note =
-            crate::note::Note::from_parts(debtor_addr, creditor_addr, value, Rseed(rseed_bytes))
+            arkworks_gramine::note::Note::from_parts(debtor_addr, creditor_addr, value, Rseed(rseed_bytes))
                 .map_err(|e| ProofError::NoteError(e.to_string()))?;
 
         // Get the commitment
